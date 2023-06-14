@@ -42,6 +42,7 @@ import (
 	"go.temporal.io/server/api/historyservicemock/v1"
 	persistencespb "go.temporal.io/server/api/persistence/v1"
 	"go.temporal.io/server/common/cluster"
+	"go.temporal.io/server/common/metrics"
 	"go.temporal.io/server/common/namespace"
 	"go.temporal.io/server/common/primitives/timestamp"
 )
@@ -95,7 +96,7 @@ func (s *taskValidatorSuite) SetupTest() {
 
 	s.taskValidator = newTaskValidator(func() (context.Context, context.CancelFunc) {
 		return context.WithTimeout(context.Background(), 4*time.Second)
-	}, s.clusterMetadata, s.namespaceCache, s.historyClient)
+	}, s.clusterMetadata, s.namespaceCache, s.historyClient, metrics.NoopMetricsHandler)
 }
 
 func (s *taskValidatorSuite) TeardownTest() {

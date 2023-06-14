@@ -27,6 +27,7 @@ package history
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"time"
 
 	commonpb "go.temporal.io/api/common/v1"
@@ -138,6 +139,12 @@ func (t *transferQueueStandbyTaskExecutor) processActivityTask(
 ) error {
 	processTaskIfClosed := false
 	actionFn := func(_ context.Context, wfContext workflow.Context, mutableState workflow.MutableState) (interface{}, error) {
+		if rand.Float64() < 0.1 {
+			t.pushActivity(ctx, transferTask, &activityTaskPostActionInfo{
+				activityTaskScheduleToStartTimeout: time.Minute * 120,
+			}, t.logger)
+		}
+
 		activityInfo, ok := mutableState.GetActivityInfo(transferTask.ScheduledEventID)
 		if !ok {
 			return nil, nil
@@ -176,6 +183,16 @@ func (t *transferQueueStandbyTaskExecutor) processWorkflowTask(
 	transferTask *tasks.WorkflowTask,
 ) error {
 	actionFn := func(_ context.Context, wfContext workflow.Context, mutableState workflow.MutableState) (interface{}, error) {
+		if rand.Float64() < 0.1 {
+			t.pushWorkflowTask(ctx, transferTask, &workflowTaskPostActionInfo{
+				workflowTaskScheduleToStartTimeout: timestamp.DurationPtr(time.Minute * 120),
+				taskqueue: taskqueuepb.TaskQueue{
+					Name: mutableState.GetExecutionInfo().TaskQueue,
+					Kind: enumspb.TASK_QUEUE_KIND_NORMAL,
+				},
+			}, t.logger)
+		}
+
 		wtInfo := mutableState.GetWorkflowTaskByID(transferTask.ScheduledEventID)
 		if wtInfo == nil {
 			return nil, nil
@@ -554,6 +571,7 @@ func (t *transferQueueStandbyTaskExecutor) pushActivity(
 		return nil
 	}
 
+	t.metricHandler.Counter(metrics.ReplicationActivityTasksPush.GetMetricName()).Record(int64(1))
 	pushActivityInfo := postActionInfo.(*activityTaskPostActionInfo)
 	timeout := pushActivityInfo.activityTaskScheduleToStartTimeout
 	return t.transferQueueTaskExecutorBase.pushActivity(
@@ -574,6 +592,7 @@ func (t *transferQueueStandbyTaskExecutor) pushWorkflowTask(
 		return nil
 	}
 
+	t.metricHandler.Counter(metrics.ReplicationWorkflowTasksPush.GetMetricName()).Record(int64(1))
 	pushwtInfo := postActionInfo.(*workflowTaskPostActionInfo)
 	return t.transferQueueTaskExecutorBase.pushWorkflowTask(
 		ctx,

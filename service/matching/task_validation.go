@@ -74,12 +74,14 @@ func newTaskValidator(
 	clusterMetadata cluster.Metadata,
 	namespaceRegistry namespace.Registry,
 	historyClient historyservice.HistoryServiceClient,
+	metricsHandler metrics.Handler,
 ) *taskValidatorImpl {
 	return &taskValidatorImpl{
 		newIOContextFn:    newIOContextFn,
 		clusterMetadata:   clusterMetadata,
 		namespaceRegistry: namespaceRegistry,
 		historyClient:     historyClient,
+		metricsHandler:    metricsHandler,
 	}
 }
 
@@ -204,8 +206,12 @@ func (v *taskValidatorImpl) isTaskValid(
 		})
 		switch err.(type) {
 		case nil:
+			if !resp.IsValid {
+				v.metricsHandler.Counter(metrics.ReplicationActivityTasksDiscard.GetMetricName()).Record(int64(1))
+			}
 			return resp.IsValid, nil
 		case *serviceerror.NotFound:
+			v.metricsHandler.Counter(metrics.ReplicationActivityTasksDiscard.GetMetricName()).Record(int64(1))
 			return false, nil
 		default:
 			return false, err
@@ -222,8 +228,12 @@ func (v *taskValidatorImpl) isTaskValid(
 		})
 		switch err.(type) {
 		case nil:
+			if !resp.IsValid {
+				v.metricsHandler.Counter(metrics.ReplicationWorkflowTasksDiscard.GetMetricName()).Record(int64(1))
+			}
 			return resp.IsValid, nil
 		case *serviceerror.NotFound:
+			v.metricsHandler.Counter(metrics.ReplicationWorkflowTasksDiscard.GetMetricName()).Record(int64(1))
 			return false, nil
 		default:
 			return false, err
