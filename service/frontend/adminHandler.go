@@ -1083,15 +1083,16 @@ func (adh *AdminHandler) DescribeCluster(
 		SupportedClients:         headers.SupportedClients,
 		ServerVersion:            headers.ServerVersion,
 		MembershipInfo:           membershipInfo,
-		ClusterId:                metadata.ClusterId,
-		ClusterName:              metadata.ClusterName,
-		HistoryShardCount:        metadata.HistoryShardCount,
+		ClusterId:                metadata.GetClusterId(),
+		ClusterName:              metadata.GetClusterName(),
+		HistoryShardCount:        metadata.GetHistoryShardCount(),
 		PersistenceStore:         adh.persistenceExecutionManager.GetName(),
 		VisibilityStore:          strings.Join(adh.visibilityMgr.GetStoreNames(), ","),
-		VersionInfo:              metadata.VersionInfo,
-		FailoverVersionIncrement: metadata.FailoverVersionIncrement,
-		InitialFailoverVersion:   metadata.InitialFailoverVersion,
-		IsGlobalNamespaceEnabled: metadata.IsGlobalNamespaceEnabled,
+		VersionInfo:              metadata.GetVersionInfo(),
+		FailoverVersionIncrement: metadata.GetFailoverVersionIncrement(),
+		InitialFailoverVersion:   metadata.GetInitialFailoverVersion(),
+		IsGlobalNamespaceEnabled: metadata.GetIsGlobalNamespaceEnabled(),
+		Tags:                     metadata.GetTags(),
 	}, nil
 }
 
@@ -1235,6 +1236,7 @@ func (adh *AdminHandler) AddOrUpdateRemoteCluster(
 			InitialFailoverVersion:   resp.GetInitialFailoverVersion(),
 			IsGlobalNamespaceEnabled: resp.GetIsGlobalNamespaceEnabled(),
 			IsConnectionEnabled:      request.GetEnableRemoteClusterConnection(),
+			Tags:                     resp.GetTags(),
 		},
 		Version: updateRequestVersion,
 	})
