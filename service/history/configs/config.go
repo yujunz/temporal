@@ -351,17 +351,15 @@ func NewConfig(
 		HistoryCacheMaxSize:                   dc.GetIntProperty(dynamicconfig.HistoryCacheMaxSize, 512),
 		HistoryCacheTTL:                       dc.GetDurationProperty(dynamicconfig.HistoryCacheTTL, time.Hour),
 		HistoryCacheNonUserContextLockTimeout: dc.GetDurationProperty(dynamicconfig.HistoryCacheNonUserContextLockTimeout, 500*time.Millisecond),
-
-		EventsCacheInitialSize: dc.GetIntProperty(dynamicconfig.EventsCacheInitialSize, 128*1024), // 128KB
-		EventsCacheMaxSize:     dc.GetIntProperty(dynamicconfig.EventsCacheMaxSize, 512*1024),     // 512KB
-		EventsCacheTTL:         dc.GetDurationProperty(dynamicconfig.EventsCacheTTL, time.Hour),
-
-		RangeSizeBits:                        20, // 20 bits for sequencer, 2^20 sequence number for any range
-		AcquireShardInterval:                 dc.GetDurationProperty(dynamicconfig.AcquireShardInterval, time.Minute),
-		AcquireShardConcurrency:              dc.GetIntProperty(dynamicconfig.AcquireShardConcurrency, 10),
-		StandbyClusterDelay:                  dc.GetDurationProperty(dynamicconfig.StandbyClusterDelay, 5*time.Minute),
-		StandbyTaskMissingEventsResendDelay:  dc.GetDurationPropertyFilteredByTaskType(dynamicconfig.StandbyTaskMissingEventsResendDelay, 10*time.Minute),
-		StandbyTaskMissingEventsDiscardDelay: dc.GetDurationPropertyFilteredByTaskType(dynamicconfig.StandbyTaskMissingEventsDiscardDelay, 15*time.Minute),
+		EventsCacheInitialSize:                dc.GetIntProperty(dynamicconfig.EventsCacheInitialSize, 128),
+		EventsCacheMaxSize:                    dc.GetIntProperty(dynamicconfig.EventsCacheMaxSize, 512),
+		EventsCacheTTL:                        dc.GetDurationProperty(dynamicconfig.EventsCacheTTL, time.Hour),
+		RangeSizeBits:                         20, // 20 bits for sequencer, 2^20 sequence number for any range
+		AcquireShardInterval:                  dc.GetDurationProperty(dynamicconfig.AcquireShardInterval, time.Minute),
+		AcquireShardConcurrency:               dc.GetIntProperty(dynamicconfig.AcquireShardConcurrency, 10),
+		StandbyClusterDelay:                   dc.GetDurationProperty(dynamicconfig.StandbyClusterDelay, 5*time.Minute),
+		StandbyTaskMissingEventsResendDelay:   dc.GetDurationPropertyFilteredByTaskType(dynamicconfig.StandbyTaskMissingEventsResendDelay, 10*time.Minute),
+		StandbyTaskMissingEventsDiscardDelay:  dc.GetDurationPropertyFilteredByTaskType(dynamicconfig.StandbyTaskMissingEventsDiscardDelay, 15*time.Minute),
 
 		QueuePendingTaskCriticalCount:    dc.GetIntProperty(dynamicconfig.QueuePendingTaskCriticalCount, 9000),
 		QueueReaderStuckCriticalAttempts: dc.GetIntProperty(dynamicconfig.QueueReaderStuckCriticalAttempts, 3),
