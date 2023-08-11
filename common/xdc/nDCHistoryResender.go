@@ -28,6 +28,7 @@ package xdc
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	commonpb "go.temporal.io/api/common/v1"
@@ -43,6 +44,7 @@ import (
 	"go.temporal.io/server/common/namespace"
 	"go.temporal.io/server/common/persistence/serialization"
 	"go.temporal.io/server/common/rpc"
+	serviceerrors "go.temporal.io/server/common/serviceerror"
 )
 
 const (
@@ -171,6 +173,25 @@ func (n *NDCHistoryResenderImpl) SendSingleWorkflowHistory(
 				tag.WorkflowID(workflowID),
 				tag.WorkflowRunID(runID),
 				tag.Error(err))
+			newErr, ok := err.(*serviceerrors.RetryReplication)
+			if ok {
+				n.logger.Error(fmt.Sprintf("failed to resend %v: (%v/%v, %v/%v), got error: %v: (%v/%v, %v/%v)",
+					runID,
+					startEventID,
+					startEventVersion,
+					endEventID,
+					endEventVersion,
+					newErr.RunId,
+					newErr.StartEventId,
+					newErr.StartEventVersion,
+					newErr.EndEventId,
+					newErr.EndEventVersion,
+				),
+					tag.WorkflowNamespaceID(namespaceID.String()),
+					tag.WorkflowID(workflowID),
+					tag.WorkflowRunID(runID),
+					tag.Error(err))
+			}
 			return err
 		}
 	}
