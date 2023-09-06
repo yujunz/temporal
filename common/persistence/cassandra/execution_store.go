@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"go.temporal.io/server/common/log"
+	"go.temporal.io/server/common/metrics"
 	p "go.temporal.io/server/common/persistence"
 	"go.temporal.io/server/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 )
@@ -118,9 +119,10 @@ var _ p.ExecutionStore = (*ExecutionStore)(nil)
 func NewExecutionStore(
 	session gocql.Session,
 	logger log.Logger,
+	metrics metrics.Handler,
 ) *ExecutionStore {
 	return &ExecutionStore{
-		HistoryStore:          NewHistoryStore(session, logger),
+		HistoryStore:          NewHistoryStore(session, logger, metrics),
 		MutableStateStore:     NewMutableStateStore(session, logger),
 		MutableStateTaskStore: NewMutableStateTaskStore(session, logger),
 	}

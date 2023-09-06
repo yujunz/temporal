@@ -27,12 +27,17 @@ package cassandra
 import (
 	"context"
 	"fmt"
+	"time"
 
 	commonpb "go.temporal.io/api/common/v1"
 	"go.temporal.io/api/serviceerror"
+
+	"go.temporal.io/server/common"
 	"go.temporal.io/server/common/log"
+	"go.temporal.io/server/common/metrics"
 	p "go.temporal.io/server/common/persistence"
 	"go.temporal.io/server/common/persistence/nosql/nosqlplugin/cassandra/gocql"
+	"go.temporal.io/server/common/persistence/serialization"
 	"go.temporal.io/server/common/primitives"
 )
 
@@ -71,6 +76,7 @@ type (
 	HistoryStore struct {
 		Session gocql.Session
 		Logger  log.Logger
+		Metrics metrics.Handler
 		p.HistoryBranchUtilImpl
 	}
 )
@@ -78,10 +84,12 @@ type (
 func NewHistoryStore(
 	session gocql.Session,
 	logger log.Logger,
+	metrics metrics.Handler,
 ) *HistoryStore {
 	return &HistoryStore{
 		Session: session,
 		Logger:  logger,
+		Metrics: metrics,
 	}
 }
 
@@ -272,6 +280,12 @@ func (h *HistoryStore) ForkHistoryBranch(
 	forkB := request.ForkBranchInfo
 	datablob := request.TreeInfo
 
+	var err error
+	datablob, err = h.hackHistoryBranch(ctx, request, datablob)
+	if err != nil {
+		return serviceerror.NewInternal(fmt.Sprintf("ForkHistoryBranch - HACK failed. Error: %v", err))
+	}
+
 	cqlTreeID, err := primitives.ValidateUUID(forkB.TreeId)
 	if err != nil {
 		return serviceerror.NewInternal(fmt.Sprintf("ForkHistoryBranch - Gocql TreeId UUID cast failed. Error: %v", err))
@@ -288,6 +302,83 @@ func (h *HistoryStore) ForkHistoryBranch(
 	}
 
 	return nil
+}
+
+// hackHistoryBranch duplicates all ancestors up to the fork node id and erases the ancestor reference in the tree info
+func (h *HistoryStore) hackHistoryBranch(
+	ctx context.Context,
+	request *p.InternalForkHistoryBranchRequest,
+	datablob *commonpb.DataBlob,
+) (*commonpb.DataBlob, error) {
+	serializer := serialization.NewSerializer()
+
+	treeInfo, err := serializer.HistoryTreeInfoFromBlob(datablob)
+	if err != nil {
+		h.Logger.DPanic(err.Error())
+		return nil, err
+	}
+
+	treeInfo.BranchInfo.Ancestors = nil // HACK: erase ancestors!
+
+	datablob, err = serializer.HistoryTreeInfoToBlob(treeInfo, datablob.EncodingType)
+	if err != nil {
+		h.Logger.DPanic(err.Error())
+		return nil, err
+	}
+
+	branchToken, err := serialization.HistoryBranchToBlob(request.ForkBranchInfo)
+	if err != nil {
+		h.Logger.DPanic(err.Error())
+		return nil, err
+	}
+
+	count := 0
+	start := time.Now()
+
+	var nextPageToken []byte
+	for {
+		resp, err := h.ReadHistoryBranch(ctx, &p.InternalReadHistoryBranchRequest{
+			BranchToken:   branchToken.Data,
+			BranchID:      request.ForkBranchInfo.BranchId,
+			MinNodeID:     common.FirstEventID,
+			MaxNodeID:     request.ForkNodeID,
+			PageSize:      100,
+			NextPageToken: nextPageToken,
+			ShardID:       request.ShardID,
+		})
+		if err != nil {
+			h.Logger.DPanic(err.Error())
+			return nil, err
+		}
+
+		batch := h.Session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+		for _, node := range resp.Nodes {
+			batch.Query(v2templateUpsertHistoryNode,
+				treeInfo.BranchInfo.TreeId,
+				treeInfo.BranchInfo.BranchId,
+				node.NodeID,
+				node.PrevTransactionID, // NOTE: this is okay because the transaction id is within a single branch scope
+				node.TransactionID,     // NOTE: this is okay because the transaction id is within a single branch scope
+				node.Events.Data,
+				node.Events.EncodingType.String(),
+			)
+		}
+		if err := h.Session.ExecuteBatch(batch); err != nil {
+			h.Logger.DPanic(err.Error())
+			return nil, err
+		}
+
+		count += len(resp.Nodes)
+
+		if resp.NextPageToken == nil {
+			h.Logger.Info(fmt.Sprintf("HACK ForkHistoryBranch duplicating %v rows %v => %v -> %v",
+				count, request.ForkBranchInfo.TreeId, request.ForkBranchInfo.BranchId, request.NewBranchID))
+			h.Metrics.Histogram("fork-history-branch-dupe-time", metrics.Milliseconds).Record(time.Since(start).Milliseconds())
+			h.Metrics.Histogram("fork-history-branch-dope-count", metrics.Dimensionless).Record(int64(count))
+			return datablob, nil
+		}
+		nextPageToken = resp.NextPageToken
+	}
 }
 
 // DeleteHistoryBranch removes a branch

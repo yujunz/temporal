@@ -135,6 +135,12 @@ func (m *executionManagerImpl) ForkHistoryBranch(
 		return nil, err
 	}
 
+	newBranchInfo.Ancestors = nil // HACK: erase ancestors!
+	newBranchToken, err = m.GetHistoryBranchUtil().UpdateHistoryBranchInfo(request.ForkBranchToken, newBranchInfo)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ForkHistoryBranchResponse{
 		NewBranchToken: newBranchToken,
 	}, nil
