@@ -58,6 +58,7 @@ type (
 		backoffTimerLock sync.Mutex
 		backoffTimer     *time.Timer
 		retrier          backoff.Retrier
+		headTaskCreateTime atomic.Pointer[time.Time]
 	}
 )
 
@@ -118,13 +119,23 @@ func (tr *taskReader) hasDispatchableTasks() bool {
 	return len(tr.taskBuffer) > 0
 }
 
+func (tr *taskReader) getBacklogAge() (age time.Duration, hasBacklog bool) {
+	ts := tr.headTaskCreateTime.Load()
+	if ts == nil {
+		return 0, false
+	}
+	return time.Since(*ts), true
+}
+
 func (tr *taskReader) dispatchBufferedTasks(ctx context.Context) error {
 	ctx = tr.tlMgr.callerInfoContext(ctx)
 
 dispatchLoop:
 	for ctx.Err() == nil {
+		tr.headTaskCreateTime.Store(nil)
 		select {
 		case taskInfo, ok := <-tr.taskBuffer:
+			tr.headTaskCreateTime.Store(taskInfo.Data.CreateTime)
 			if !ok { // Task queue getTasks pump is shutdown
 				break dispatchLoop
 			}
