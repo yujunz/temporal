@@ -462,8 +462,10 @@ const (
 	// absolute guarantee of FIFO ordering as there are infrequent cases in which tasks may still be dispatched
 	// out of order (e.g. sync match can happen when there is no buffered task in memory, but there are
 	// unloaded tasks in the database)
-	// Note that `system.enableActivityEagerExecution` should be disabled for fair queuing to work properly.
+	// Note that `system.enableActivityEagerExecution` and `system.enableEagerWorkflowStart` should be disabled
+	// for fair queuing to work properly.
 	MatchingFairOrdering = "matching.fairOrdering"
+	MatchingMaxBacklogAgeTarget = "matching.maxBacklogAgeTarget"
 
 	// for matching testing only:
 

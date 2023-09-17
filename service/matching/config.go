@@ -91,6 +91,7 @@ type (
 		LoadUserData dynamicconfig.BoolPropertyFnWithTaskQueueInfoFilters
 
 		FairOrdering dynamicconfig.BoolPropertyFnWithTaskQueueInfoFilters
+		MaxBacklogAgeTarget dynamicconfig.DurationPropertyFnWithTaskQueueInfoFilters
 	}
 
 	forwarderConfig struct {
@@ -140,8 +141,11 @@ type (
 		// absolute guarantee of FIFO ordering as there are infrequent cases in which tasks may still be dispatched
 		// out of order (e.g. sync match can happen when there is no buffered task in memory, but there are
 		// unloaded tasks in the database)
-		// Note that `system.enableActivityEagerExecution` should be disabled for fair queuing to work properly.
+		// Note that `system.enableActivityEagerExecution` and `system.enableEagerWorkflowStart` should be disabled
+		// for fair queuing to work properly.
 		FairOrdering func() bool
+
+		MaxBacklogAgeTarget func() time.Duration
 	}
 )
 
@@ -171,7 +175,7 @@ func NewConfig(
 		PersistencePerShardNamespaceMaxQPS:    dynamicconfig.DefaultPerShardNamespaceRPSMax,
 		EnablePersistencePriorityRateLimiting: dc.GetBoolProperty(dynamicconfig.MatchingEnablePersistencePriorityRateLimiting, true),
 		PersistenceDynamicRateLimitingParams:  dc.GetMapProperty(dynamicconfig.MatchingPersistenceDynamicRateLimitingParams, dynamicconfig.DefaultDynamicRateLimitingParams),
-		SyncMatchWaitDuration:                 dc.GetDurationPropertyFilteredByTaskQueueInfo(dynamicconfig.MatchingSyncMatchWaitDuration, 200*time.Millisecond),
+		SyncMatchWaitDuration:                 dc.GetDurationPropertyFilteredByTaskQueueInfo(dynamicconfig.MatchingSyncMatchWaitDuration, 200000*time.Millisecond),
 		TestDisableSyncMatch:                  dc.GetBoolProperty(dynamicconfig.TestMatchingDisableSyncMatch, false),
 		LoadUserData:                          dc.GetBoolPropertyFilteredByTaskQueueInfo(dynamicconfig.MatchingLoadUserData, true),
 		RPS:                                   dc.GetIntProperty(dynamicconfig.MatchingRPS, 1200),
@@ -188,9 +192,9 @@ func NewConfig(
 		ThrottledLogRPS:                       dc.GetIntProperty(dynamicconfig.MatchingThrottledLogRPS, 20),
 		NumTaskqueueWritePartitions:           dc.GetTaskQueuePartitionsProperty(dynamicconfig.MatchingNumTaskqueueWritePartitions),
 		NumTaskqueueReadPartitions:            dc.GetTaskQueuePartitionsProperty(dynamicconfig.MatchingNumTaskqueueReadPartitions),
-		ForwarderMaxOutstandingPolls:          dc.GetIntPropertyFilteredByTaskQueueInfo(dynamicconfig.MatchingForwarderMaxOutstandingPolls, 1),
-		ForwarderMaxOutstandingTasks:          dc.GetIntPropertyFilteredByTaskQueueInfo(dynamicconfig.MatchingForwarderMaxOutstandingTasks, 1),
-		ForwarderMaxRatePerSecond:             dc.GetIntPropertyFilteredByTaskQueueInfo(dynamicconfig.MatchingForwarderMaxRatePerSecond, 10),
+		ForwarderMaxOutstandingPolls:          dc.GetIntPropertyFilteredByTaskQueueInfo(dynamicconfig.MatchingForwarderMaxOutstandingPolls, 1000),
+		ForwarderMaxOutstandingTasks:          dc.GetIntPropertyFilteredByTaskQueueInfo(dynamicconfig.MatchingForwarderMaxOutstandingTasks, 1000),
+		ForwarderMaxRatePerSecond:             dc.GetIntPropertyFilteredByTaskQueueInfo(dynamicconfig.MatchingForwarderMaxRatePerSecond, 1000),
 		ForwarderMaxChildrenPerNode:           dc.GetIntPropertyFilteredByTaskQueueInfo(dynamicconfig.MatchingForwarderMaxChildrenPerNode, 20),
 		ShutdownDrainDuration:                 dc.GetDurationProperty(dynamicconfig.MatchingShutdownDrainDuration, 0*time.Second),
 		VersionCompatibleSetLimitPerQueue:     dc.GetIntPropertyFilteredByNamespace(dynamicconfig.VersionCompatibleSetLimitPerQueue, 10),
@@ -207,6 +211,7 @@ func NewConfig(
 		VisibilityDisableOrderByClause:    dc.GetBoolPropertyFnWithNamespaceFilter(dynamicconfig.VisibilityDisableOrderByClause, true),
 		VisibilityEnableManualPagination:  dc.GetBoolPropertyFnWithNamespaceFilter(dynamicconfig.VisibilityEnableManualPagination, true),
 		FairOrdering:                      dc.GetBoolPropertyFilteredByTaskQueueInfo(dynamicconfig.MatchingFairOrdering, false),
+		MaxBacklogAgeTarget:                      dc.GetDurationPropertyFilteredByTaskQueueInfo(dynamicconfig.MatchingMaxBacklogAgeTarget, -1),
 	}
 }
 
@@ -279,6 +284,10 @@ func newTaskQueueConfig(id *taskQueueID, config *Config, namespace namespace.Nam
 
 		FairOrdering: func() bool {
 			return config.FairOrdering(namespace.String(), taskQueueName, taskType)
+		},
+
+		MaxBacklogAgeTarget: func() time.Duration {
+			return config.MaxBacklogAgeTarget(namespace.String(), taskQueueName, taskType)
 		},
 	}
 }

@@ -42,3 +42,28 @@ frontend.workerVersioningWorkflowAPIs:
   - value: true
 frontend.accessHistoryFraction:
   - value: 1.0
+
+#matching.maxBacklogAgeTarget:
+#  - value: 3m
+#    constraints:
+#      namespace: backlog_aware_t2
+#      taskQueueName: tq
+#      taskType: Activity
+
+#matching.fairOrdering:
+#  - value: true
+#    constraints:
+#      namespace: default
+#      taskQueueName: fair_ordering
+#      taskType: Activity
+
+matching.numTaskqueueWritePartitions:
+  - value: 2
+    constraints:
+      namespace: default_t2
+#      taskQueueName: <task queue name>
+matching.numTaskqueueReadPartitions:
+  - value: 2
+    constraints:
+      namespace: default_t2
+#      taskQueueName: <task queue name>

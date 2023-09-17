@@ -125,7 +125,7 @@ type (
 		// GetTask blocks waiting for a task Returns error when context deadline is exceeded
 		// maxDispatchPerSecond is the max rate at which tasks are allowed to be dispatched
 		// from this task queue to pollers
-		GetTask(ctx context.Context, pollMetadata *pollMetadata) (*internalTask, error)
+		GetTask(ctx context.Context, pollMetadata *pollMetadata) (*internalTask, bool, error)
 		// MarkAlive updates the liveness timer to keep this taskQueueManager alive.
 		MarkAlive()
 		// SpoolTask spools a task to persistence to be matched asynchronously when a poller is available.
@@ -282,7 +282,7 @@ func newTaskQueueManager(
 		forwardTaskQueue := newTaskQueueIDWithVersionSet(taskQueue, "")
 		fwdr = newForwarder(&taskQueueConfig.forwarderConfig, forwardTaskQueue, stickyInfo.kind, e.matchingRawClient)
 	}
-	tlMgr.matcher = newTaskMatcher(taskQueueConfig, fwdr, tlMgr.taggedMetricsHandler)
+	tlMgr.matcher = newTaskMatcher(taskQueueConfig, fwdr, tlMgr.taggedMetricsHandler, taskQueue)
 	for _, opt := range opts {
 		opt(tlMgr)
 	}
@@ -450,6 +450,7 @@ func (c *taskQueueManagerImpl) AddTask(
 	}
 
 	if params.forwardedFrom != "" {
+		//fmt.Printf("Remote task rejected\n")
 		// forwarded from child partition - only do sync match
 		// child partition will persist the task when sync match fails
 		return false, errRemoteSyncMatchFailed
@@ -486,7 +487,7 @@ func (c *taskQueueManagerImpl) SpoolTask(params addTaskParams) error {
 func (c *taskQueueManagerImpl) GetTask(
 	ctx context.Context,
 	pollMetadata *pollMetadata,
-) (*internalTask, error) {
+) (*internalTask, bool, error) {
 	c.liveness.markAlive()
 
 	c.currentPolls.Add(1)
@@ -494,7 +495,7 @@ func (c *taskQueueManagerImpl) GetTask(
 
 	namespaceEntry, err := c.namespaceRegistry.GetNamespaceByID(c.taskQueueID.namespaceID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// the desired global rate limit for the task queue comes from the
@@ -508,14 +509,14 @@ func (c *taskQueueManagerImpl) GetTask(
 		return c.matcher.PollForQuery(ctx, pollMetadata)
 	}
 
-	task, err := c.matcher.Poll(ctx, pollMetadata)
+	task, forwarded, err := c.matcher.Poll(ctx, pollMetadata)
 	if err != nil {
-		return nil, err
+		return nil, forwarded, err
 	}
 
 	task.namespace = c.namespace
 	task.backlogCountHint = c.taskAckManager.getBacklogCountHint
-	return task, nil
+	return task, forwarded, nil
 }
 
 func (c *taskQueueManagerImpl) MarkAlive() {
@@ -718,9 +719,16 @@ func (c *taskQueueManagerImpl) trySyncMatch(ctx context.Context, params addTaskP
 	if params.forwardedFrom == "" && c.config.TestDisableSyncMatch() {
 		return false, nil
 	}
-	if c.config.FairOrdering() && c.taskReader.hasDispatchableTasks() {
-		return false, nil // allow the spooled tasks to be processed first
-	}
+	//if c.config.FairOrdering() && c.taskReader.hasDispatchableTasks() {
+	//	return false, nil // allow the spooled tasks to be processed first
+	//}
+	//if ageTarget := c.config.MaxBacklogAgeTarget(); ageTarget >= 0 {
+	//	backlogAge, hasBacklog := c.taskReader.getBacklogAge()
+	//	if hasBacklog && backlogAge >= ageTarget {
+	//		// backlog is old, allow the spooled tasks to be processed first
+	//		return false, nil
+	//	}
+	//}
 
 	childCtx, cancel := newChildContext(ctx, c.config.SyncMatchWaitDuration(), time.Second)
 	defer cancel()
