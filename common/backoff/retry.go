@@ -141,6 +141,7 @@ func ThrottleRetryContext(
 
 	r := NewRetrier(policy, SystemClock)
 	t := NewRetrier(throttleRetryPolicy, SystemClock)
+	timer := time.NewTimer(0)
 	for ctx.Err() == nil {
 		if err = operation(ctx); err == nil {
 			return nil
@@ -162,7 +163,7 @@ func ThrottleRetryContext(
 			break
 		}
 
-		timer := time.NewTimer(next)
+		timer.Reset(next)
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
