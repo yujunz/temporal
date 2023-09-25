@@ -6,17 +6,31 @@
 [go-report-image]: https://goreportcard.com/badge/github.com/temporalio/temporal
 [go-report-url]: https://goreportcard.com/report/github.com/temporalio/temporal
 
-# Temporal  
+# Temporal
 
-Temporal is a microservice orchestration platform which enables developers to build scalable applications without sacrificing productivity or reliability.
-Temporal server executes units of application logic, Workflows, in a resilient manner that automatically handles intermittent failures, and retries failed operations.
+Temporal is a durable execution and service orchestration platform that enables developers to build scalable applications without sacrificing productivity or reliability.
+The Temporal server executes units of application logic called Workflows in a resilient manner that automatically handles intermittent failures, and retries failed operations.
 
-Temporal is a mature technology, a fork of Uber's Cadence.
-Temporal is being developed by [Temporal Technologies](https://temporal.io/), a startup by the creators of Cadence.
+Temporal is a mature technology that originated as a fork of Uber's Cadence.
+It is developed by [Temporal Technologies](https://temporal.io/), a startup by the creators of Cadence.
 
-[![image](https://user-images.githubusercontent.com/12602502/136433917-98abe0d7-4f81-4f97-9b11-62b331c76608.png)](http://www.youtube.com/watch?v=f-18XztyN6c "Temporal")
+[![image](https://user-images.githubusercontent.com/12602502/136433917-98abe0d7-4f81-4f97-9b11-62b331c76608.png)](http://www.youtube.com/watch?v=f-18XztyN6c 'Temporal')
+
+# High-level view
+
+At the highest level, the components of a system using Temporal fall into two categories:
+
+- **User-hosted processes**
+
+  - The user's application communicates with the Temporal server using one of the [Temporal SDKs](https://docs.temporal.io/dev-guide).
+  - The user runs Temporal [Worker](https://docs.temporal.io/workers) processes. These also use one of the Temporal SDKs and host the user's [Workflow](https://docs.temporal.io/workflows) and [Activity](https://docs.temporal.io/activities) code.
+
+- **Temporal Server**<br>
+  Users can host and operate the Temporal server and its database themselves, or use [Temporal Cloud](https://temporal.io/cloud).
 
 Learn more about Temporal at [docs.temporal.io](https://docs.temporal.io).
+
+For description of Temporal internals see [ARCHITECTURE.md](./ARCHITECTURE.md)
 
 ## Getting Started
 
