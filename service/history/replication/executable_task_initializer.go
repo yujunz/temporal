@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"time"
 
+	"go.temporal.io/server/common/persistence/serialization"
 	"go.uber.org/fx"
 
 	enumsspb "go.temporal.io/server/api/enums/v1"
@@ -57,6 +58,7 @@ type (
 		TaskScheduler           ctasks.Scheduler[TrackableExecutableTask]
 		MetricsHandler          metrics.Handler
 		Logger                  log.Logger
+		EventSerializer         serialization.Serializer
 	}
 )
 
