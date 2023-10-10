@@ -22,10 +22,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package matching
+package api
 
 import (
 	"context"
+	"go.temporal.io/server/service/matching"
 	"sync"
 	"time"
 
@@ -46,8 +47,8 @@ import (
 type (
 	// Handler - gRPC handler interface for matchingservice
 	Handler struct {
-		engine            Engine
-		config            *Config
+		engine            matching.Engine
+		config            *matching.Config
 		metricsHandler    metrics.Handler
 		logger            log.Logger
 		startWG           sync.WaitGroup
@@ -56,17 +57,13 @@ type (
 	}
 )
 
-const (
-	serviceName = "temporal.api.workflowservice.v1.MatchingService"
-)
-
 var (
 	_ matchingservice.MatchingServiceServer = (*Handler)(nil)
 )
 
 // NewHandler creates a gRPC handler for the matchingservice
 func NewHandler(
-	config *Config,
+	config *matching.Config,
 	logger log.Logger,
 	throttledLogger log.Logger,
 	taskManager persistence.TaskManager,
@@ -84,7 +81,7 @@ func NewHandler(
 		metricsHandler:  metricsHandler,
 		logger:          logger,
 		throttledLogger: throttledLogger,
-		engine: NewEngine(
+		engine: matching.NewEngine(
 			taskManager,
 			historyClient,
 			matchingRawClient, // Use non retry client inside matching

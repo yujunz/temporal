@@ -28,6 +28,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.temporal.io/server/service/matching/app"
 	"strings"
 
 	"github.com/pborman/uuid"
@@ -71,7 +72,6 @@ import (
 	"go.temporal.io/server/service/history"
 	"go.temporal.io/server/service/history/replication"
 	"go.temporal.io/server/service/history/workflow"
-	"go.temporal.io/server/service/matching"
 	"go.temporal.io/server/service/worker"
 )
 
@@ -451,7 +451,7 @@ func MatchingServiceProvider(
 		fx.Supply(params.SpanExporters),
 		ServiceTracingModule,
 		resource.DefaultOptions,
-		matching.Module,
+		app.Module,
 		FxLogAdapter,
 	)
 

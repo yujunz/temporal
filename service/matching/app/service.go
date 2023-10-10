@@ -22,9 +22,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package matching
+package app
 
 import (
+	"go.temporal.io/server/service/matching"
+	"go.temporal.io/server/service/matching/api"
 	"math/rand"
 	"net"
 	"time"
@@ -42,10 +44,14 @@ import (
 	"go.temporal.io/server/common/persistence/visibility/manager"
 )
 
+const (
+	serviceName = "temporal.api.workflowservice.v1.MatchingService"
+)
+
 // Service represents the matching service
 type Service struct {
-	handler *Handler
-	config  *Config
+	handler *api.Handler
+	config  *matching.Config
 
 	server                         *grpc.Server
 	logger                         log.SnTaggedLogger
@@ -60,12 +66,12 @@ type Service struct {
 
 func NewService(
 	grpcServerOptions []grpc.ServerOption,
-	serviceConfig *Config,
+	serviceConfig *matching.Config,
 	logger log.SnTaggedLogger,
 	membershipMonitor membership.Monitor,
 	grpcListener net.Listener,
 	runtimeMetricsReporter *metrics.RuntimeMetricsReporter,
-	handler *Handler,
+	handler *api.Handler,
 	metricsHandler metrics.Handler,
 	faultInjectionDataStoreFactory *client.FaultInjectionDataStoreFactory,
 	healthServer *health.Server,

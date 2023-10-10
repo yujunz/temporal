@@ -22,9 +22,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package matching
+package app
 
 import (
+	"go.temporal.io/server/service/matching"
+	"go.temporal.io/server/service/matching/api"
 	"go.uber.org/fx"
 
 	"go.temporal.io/server/common"
@@ -70,8 +72,8 @@ var Module = fx.Options(
 func ConfigProvider(
 	dc *dynamicconfig.Collection,
 	persistenceConfig config.Persistence,
-) *Config {
-	return NewConfig(
+) *matching.Config {
+	return matching.NewConfig(
 		dc,
 		persistenceConfig.StandardVisibilityConfigExist(),
 		persistenceConfig.AdvancedVisibilityConfigExist(),
@@ -97,12 +99,12 @@ func TelemetryInterceptorProvider(
 	)
 }
 
-func ThrottledLoggerRpsFnProvider(serviceConfig *Config) resource.ThrottledLoggerRpsFn {
+func ThrottledLoggerRpsFnProvider(serviceConfig *matching.Config) resource.ThrottledLoggerRpsFn {
 	return func() float64 { return float64(serviceConfig.ThrottledLogRPS()) }
 }
 
 func RateLimitInterceptorProvider(
-	serviceConfig *Config,
+	serviceConfig *matching.Config,
 ) *interceptor.RateLimitInterceptor {
 	return interceptor.NewRateLimitInterceptor(
 		configs.NewPriorityRateLimiter(func() float64 { return float64(serviceConfig.RPS()) }, serviceConfig.OperatorRPSRatio),
@@ -113,7 +115,7 @@ func RateLimitInterceptorProvider(
 // PersistenceRateLimitingParamsProvider is the same between services but uses different config sources.
 // if-case comes from resourceImpl.New.
 func PersistenceRateLimitingParamsProvider(
-	serviceConfig *Config,
+	serviceConfig *matching.Config,
 	persistenceLazyLoadedServiceResolver service.PersistenceLazyLoadedServiceResolver,
 ) service.PersistenceRateLimitingParams {
 	return service.NewPersistenceRateLimitingParams(
@@ -154,7 +156,7 @@ func VisibilityManagerProvider(
 	logger log.Logger,
 	persistenceConfig *config.Persistence,
 	metricsHandler metrics.Handler,
-	serviceConfig *Config,
+	serviceConfig *matching.Config,
 	esClient esclient.Client,
 	persistenceServiceResolver resolver.ServiceResolver,
 	searchAttributesMapperProvider searchattribute.MapperProvider,
@@ -180,7 +182,7 @@ func VisibilityManagerProvider(
 }
 
 func HandlerProvider(
-	config *Config,
+	config *matching.Config,
 	logger log.SnTaggedLogger,
 	throttledLogger log.ThrottledLogger,
 	taskManager persistence.TaskManager,
@@ -192,8 +194,8 @@ func HandlerProvider(
 	clusterMetadata cluster.Metadata,
 	namespaceReplicationQueue TaskQueueReplicatorNamespaceReplicationQueue,
 	visibilityManager manager.VisibilityManager,
-) *Handler {
-	return NewHandler(
+) *api.Handler {
+	return api.NewHandler(
 		config,
 		logger,
 		throttledLogger,

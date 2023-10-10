@@ -29,6 +29,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"go.temporal.io/server/service/matching/app"
 	"net"
 	"strconv"
 	"sync"
@@ -76,7 +77,6 @@ import (
 	"go.temporal.io/server/service/history"
 	"go.temporal.io/server/service/history/replication"
 	"go.temporal.io/server/service/history/workflow"
-	"go.temporal.io/server/service/matching"
 	"go.temporal.io/server/service/worker"
 	"go.temporal.io/server/temporal"
 )
@@ -84,7 +84,7 @@ import (
 type (
 	temporalImpl struct {
 		frontendService *frontend.Service
-		matchingService *matching.Service
+		matchingService *app.Service
 		historyServices []*history.Service
 		workerService   *worker.Service
 
@@ -598,7 +598,7 @@ func (c *temporalImpl) startMatching(hosts map[primitives.ServiceName][]string, 
 		}
 	}
 
-	var matchingService *matching.Service
+	var matchingService *app.Service
 	var clientBean client.Bean
 	var namespaceRegistry namespace.Registry
 	app := fx.New(
@@ -632,7 +632,7 @@ func (c *temporalImpl) startMatching(hosts map[primitives.ServiceName][]string, 
 		fx.Provide(resource.DefaultSnTaggedLoggerProvider),
 		fx.Supply(c.spanExporters),
 		temporal.ServiceTracingModule,
-		matching.Module,
+		app.Module,
 		fx.Populate(&matchingService, &clientBean, &namespaceRegistry),
 		temporal.FxLogAdapter,
 		c.getFxOptionsForService(primitives.MatchingService),
