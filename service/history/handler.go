@@ -1951,7 +1951,12 @@ func (h *Handler) StreamWorkflowReplicationMessages(
 	if err != nil {
 		return err
 	}
+	clusterShardIDErrMsg := fmt.Sprintf(
+		"encountered unexpected error: cluster shard ID of client: %v, server %v",
+		clientClusterShardID, serverClusterShardID,
+	)
 	if serverClusterShardID.ClusterID != int32(h.clusterMetadata.GetClusterID()) {
+		h.logger.Error(clusterShardIDErrMsg)
 		return serviceerror.NewInvalidArgument(fmt.Sprintf(
 			"wrong cluster: target: %v, current: %v",
 			serverClusterShardID.ClusterID,
@@ -1969,14 +1974,17 @@ func (h *Handler) StreamWorkflowReplicationMessages(
 	allClusterInfo := shardContext.GetClusterMetadata().GetAllClusterInfo()
 	clientClusterName, clientShardCount, err := replication.ClusterIDToClusterNameShardCount(allClusterInfo, clientClusterShardID.ClusterID)
 	if err != nil {
+		h.logger.Error(clusterShardIDErrMsg, tag.Error(err))
 		return h.convertError(err)
 	}
 	_, serverShardCount, err := replication.ClusterIDToClusterNameShardCount(allClusterInfo, int32(shardContext.GetClusterMetadata().GetClusterID()))
 	if err != nil {
+		h.logger.Error(clusterShardIDErrMsg, tag.Error(err))
 		return h.convertError(err)
 	}
 	err = common.VerifyShardIDMapping(clientShardCount, serverShardCount, clientClusterShardID.ShardID, serverClusterShardID.ShardID)
 	if err != nil {
+		h.logger.Error(clusterShardIDErrMsg, tag.Error(err))
 		return h.convertError(err)
 	}
 	streamSender := replication.NewStreamSender(
