@@ -197,6 +197,34 @@ func newAdminWorkflowCommands(clientFactory ClientFactory) []*cli.Command {
 			},
 		},
 		{
+			Name:    "resend-replication-task",
+			Aliases: []string{},
+			Usage:   "Resend replication task",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  FlagNamespaceID,
+					Usage: "Namespace ID",
+				},
+				&cli.StringFlag{
+					Name:    FlagWorkflowID,
+					Aliases: FlagWorkflowIDAlias,
+					Usage:   "Workflow ID",
+				},
+				&cli.StringFlag{
+					Name:    FlagRunID,
+					Aliases: FlagRunIDAlias,
+					Usage:   "Run ID",
+				},
+				&cli.StringFlag{
+					Name:  FlagCluster,
+					Usage: "Source cluster",
+				},
+			},
+			Action: func(c *cli.Context) error {
+				return AdminResendReplicationTasks(c)
+			},
+		},
+		{
 			Name:    "delete",
 			Aliases: []string{"del"},
 			Usage:   "Delete current workflow execution and the mutableState record",

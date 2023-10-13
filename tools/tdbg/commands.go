@@ -686,3 +686,45 @@ func AdminRebuildMutableState(c *cli.Context, clientFactory ClientFactory) error
 	}
 	return nil
 }
+
+// AdminResendReplicationTasks generate replication task
+func AdminResendReplicationTasks(c *cli.Context) error {
+	adminClient := cFactory.AdminClient(c)
+
+	nid, err := getRequiredOption(c, FlagNamespaceID)
+	if err != nil {
+		return err
+	}
+
+	wid, err := getRequiredOption(c, FlagWorkflowID)
+	if err != nil {
+		return err
+	}
+	rid, err := getRequiredOption(c, FlagRunID)
+	if err != nil {
+		return err
+	}
+
+	cluster, err := getRequiredOption(c, FlagCluster)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := newContext(c)
+	defer cancel()
+
+	_, err = adminClient.ResendReplicationTasks(ctx, &adminservice.ResendReplicationTasksRequest{
+		NamespaceId:   nid,
+		WorkflowId:    wid,
+		RunId:         rid,
+		RemoteCluster: cluster,
+		StartEventId:  0,
+		StartVersion:  1057,
+	})
+	if err != nil {
+		return fmt.Errorf("resend replication task failed: %s", err)
+	} else {
+		fmt.Println("resend replication task succeeded.")
+	}
+	return nil
+}
