@@ -52,6 +52,7 @@ var Module = fx.Options(
 	fx.Invoke(ReplicationStreamSchedulerLifetimeHooks),
 	fx.Provide(NDCHistoryResenderProvider),
 	fx.Provide(EagerNamespaceRefresherProvider),
+	fx.Provide(SequentialTaskQueueFactoryProvider),
 )
 
 func ReplicationTaskFetcherFactoryProvider(
@@ -117,6 +118,7 @@ func ReplicationTaskExecutorProvider() TaskExecutorProvider {
 func ReplicationStreamSchedulerProvider(
 	config *configs.Config,
 	logger log.Logger,
+	queueFactory ctasks.SequentialTaskQueueFactory[TrackableExecutableTask],
 ) ctasks.Scheduler[TrackableExecutableTask] {
 	return ctasks.NewSequentialScheduler[TrackableExecutableTask](
 		&ctasks.SequentialSchedulerOptions{
@@ -124,9 +126,22 @@ func ReplicationStreamSchedulerProvider(
 			WorkerCount: config.ReplicationProcessorSchedulerWorkerCount,
 		},
 		WorkflowKeyHashFn,
-		NewSequentialTaskQueue,
+		queueFactory,
 		logger,
 	)
+}
+
+func SequentialTaskQueueFactoryProvider(
+	logger log.Logger,
+	metricsHandler metrics.Handler,
+	config *configs.Config,
+) ctasks.SequentialTaskQueueFactory[TrackableExecutableTask] {
+	return func(task TrackableExecutableTask) ctasks.SequentialTaskQueue[TrackableExecutableTask] {
+		if config.EnableReplicationTaskBatching() {
+			return NewSequentialTaskQueue(task)
+		}
+		return NewSequentialBatchableTaskQueue(task, nil, logger, metricsHandler)
+	}
 }
 
 func ReplicationStreamSchedulerLifetimeHooks(
