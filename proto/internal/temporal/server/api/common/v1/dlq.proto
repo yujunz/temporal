@@ -3,13 +3,7 @@ syntax = "proto3";
 package temporal.server.api.common.v1;
 option go_package = "go.temporal.io/server/api/common/v1;commonspb";
 
-import "temporal/api/common/v1/message.proto";
-
-message HistoryTask {
-  // shard_id is included to avoid having to deserialize the task blob.
-  int32 shard_id = 1;
-  temporal.api.common.v1.DataBlob blob = 2;
-}
+import "temporal/server/api/common/v1/tasks.proto";
 
 message HistoryDLQTaskMetadata {
   // message_id is the zero-indexed sequence number of the message in the queue that contains this history task.
@@ -21,7 +15,7 @@ message HistoryDLQTaskMetadata {
 message HistoryDLQTask {
   HistoryDLQTaskMetadata metadata = 1;
   // This is named payload to prevent stuttering (e.g. task.Task).
-  HistoryTask payload = 2;
+  temporal.server.api.common.v1.ShardedTask payload = 2;
 }
 
 // HistoryDLQKey is a compound key that identifies a history DLQ.

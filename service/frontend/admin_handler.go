@@ -34,11 +34,11 @@ import (
 	"time"
 
 	replicationpb "go.temporal.io/api/replication/v1"
+	"go.temporal.io/server/api/adminservice/v1"
 	commonspb "go.temporal.io/server/api/common/v1"
+	"go.temporal.io/server/api/historyservice/v1"
 	"google.golang.org/grpc/metadata"
 
-	"go.temporal.io/server/api/adminservice/v1"
-	"go.temporal.io/server/api/historyservice/v1"
 	"go.temporal.io/server/client/history"
 	"go.temporal.io/server/common/channel"
 	"go.temporal.io/server/common/clock"
@@ -1858,6 +1858,17 @@ func (adh *AdminHandler) MergeDLQTasks(ctx context.Context, request *adminservic
 	return &adminservice.MergeDLQTasksResponse{
 		JobToken: jobTokenBytes,
 	}, nil
+}
+
+// AddTasks is just a pass-through to the history service. The DLQ uses this to re-enqueue tasks from its own DLQ to the
+// queue of the original cluster, which means it's a cross-cluster request, so we can't hist the history service
+// directly. Hence, that's why this RPC is exposed here in the admin service.
+func (adh *AdminHandler) AddTasks(ctx context.Context, request *adminservice.AddTasksRequest) (*adminservice.AddTasksResponse, error) {
+	_, err := adh.historyClient.AddTasks(ctx, &historyservice.AddTasksRequest{
+		ShardId: request.ShardId,
+		Tasks:   request.Tasks,
+	})
+	return &adminservice.AddTasksResponse{}, err
 }
 
 func (adh *AdminHandler) getDLQWorkflowID(key *persistence.QueueKey) string {

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package temporal.server.api.common.v1;
+option go_package = "go.temporal.io/server/api/common/v1;commonspb";
+
+import "temporal/api/common/v1/message.proto";
+
+message CategorizedTask {
+  // category_id is needed to deserialize the tasks. See TaskCategory for a list of options here. However, keep in mind
+  // that the list of valid options is registered dynamically with the server in the history/tasks package, so that
+  // enum is not comprehensive.
+  int32 category_id = 1;
+  // blob is the serialized task.
+  temporal.api.common.v1.DataBlob blob = 2;
+}
+
+message ShardedTask {
+  // shard_id is included to avoid having to deserialize the task blob.
+  int32 shard_id = 1;
+  // blob is the serialized task.
+  temporal.api.common.v1.DataBlob blob = 2;
+}

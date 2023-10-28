@@ -55,7 +55,7 @@ func TestNewExecutionManagerDLQWriter(t *testing.T) {
 	replicationTaskInfo := &persistencespb.ReplicationTaskInfo{
 		TaskId: 21,
 	}
-	err := writer.WriteTaskToDLQ(context.Background(), replication.WriteRequest{
+	err := writer.WriteTaskToDLQ(context.Background(), replication.DLQWriteRequest{
 		ShardID:             13,
 		ExecutionManager:    executionManager,
 		SourceCluster:       "test-source-cluster",
@@ -106,7 +106,7 @@ func TestNewDLQWriterAdapter(t *testing.T) {
 				TaskType:    tc.taskType,
 				TaskId:      21,
 			}
-			err := writer.WriteTaskToDLQ(context.Background(), replication.WriteRequest{
+			err := writer.WriteTaskToDLQ(context.Background(), replication.DLQWriteRequest{
 				ShardID:             13,
 				ExecutionManager:    executionManager,
 				SourceCluster:       "test-source-cluster",

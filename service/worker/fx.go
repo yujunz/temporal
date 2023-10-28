@@ -25,6 +25,10 @@
 package worker
 
 import (
+	"context"
+
+	"go.temporal.io/server/api/adminservice/v1"
+	"go.temporal.io/server/client"
 	"go.uber.org/fx"
 
 	"go.temporal.io/server/common/cluster"
@@ -52,6 +56,11 @@ import (
 	"go.temporal.io/server/service/worker/scheduler"
 )
 
+// dlqClusterMetadataAdapter adapts a cluster.Metadata to the dlq.ClusterMetadata interface.
+type dlqClusterMetadataAdapter struct {
+	md cluster.Metadata
+}
+
 var Module = fx.Options(
 	migration.Module,
 	addsearchattributes.Module,
@@ -60,9 +69,28 @@ var Module = fx.Options(
 	scheduler.Module,
 	batcher.Module,
 	dlq.Module,
-	fx.Provide(func(c resource.HistoryClient) dlq.HistoryClient {
-		return c
-	}),
+	fx.Provide(
+		func(c resource.HistoryClient) dlq.HistoryClient {
+			return c
+		},
+		func(m cluster.Metadata) dlq.ClusterMetadata {
+			return dlqClusterMetadataAdapter{m}
+		},
+		func(b client.Bean) dlq.TaskClientDialer {
+			return dlq.TaskClientDialerFn(func(_ context.Context, address string) (dlq.TaskClient, error) {
+				c, err := b.GetRemoteAdminClient(address)
+				if err != nil {
+					return nil, err
+				}
+				return dlq.AddTasksFn(func(
+					ctx context.Context,
+					req *adminservice.AddTasksRequest,
+				) (*adminservice.AddTasksResponse, error) {
+					return c.AddTasks(ctx, req)
+				}), nil
+			})
+		},
+	),
 	fx.Provide(VisibilityManagerProvider),
 	fx.Provide(dynamicconfig.NewCollection),
 	fx.Provide(ThrottledLoggerRpsFnProvider),
@@ -157,4 +185,16 @@ func VisibilityManagerProvider(
 
 func ServiceLifetimeHooks(lc fx.Lifecycle, svc *Service) {
 	lc.Append(fx.StartStopHook(svc.Start, svc.Stop))
+}
+
+func (c dlqClusterMetadataAdapter) CurrentClusterName() string {
+	return c.md.GetCurrentClusterName()
+}
+
+func (c dlqClusterMetadataAdapter) ClusterAddress(name string) (string, bool) {
+	info, ok := c.md.GetAllClusterInfo()[name]
+	if !ok {
+		return "", false
+	}
+	return info.RPCAddress, true
 }

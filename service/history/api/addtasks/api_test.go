@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 	commonpb "go.temporal.io/api/common/v1"
 	"go.temporal.io/api/serviceerror"
+	commonspb "go.temporal.io/server/api/common/v1"
 
 	"go.temporal.io/server/api/historyservice/v1"
 	"go.temporal.io/server/common/definition"
@@ -126,7 +127,7 @@ func TestInvoke(t *testing.T) {
 						serializer := serialization.NewTaskSerializer()
 						blob, err := serializer.SerializeTask(task)
 						require.NoError(t, err)
-						params.req.Tasks = append(params.req.Tasks, &historyservice.AddTasksRequest_Task{
+						params.req.Tasks = append(params.req.Tasks, &commonspb.CategorizedTask{
 							CategoryId: int32(task.GetCategory().ID()),
 							Blob:       &blob,
 						})
@@ -154,7 +155,7 @@ func TestInvoke(t *testing.T) {
 		{
 			name: "too many tasks",
 			configure: func(t *testing.T, params *testParams) {
-				params.req.Tasks = make([]*historyservice.AddTasksRequest_Task, 1001)
+				params.req.Tasks = make([]*commonspb.CategorizedTask, 1001)
 				params.expectation = func(resp *historyservice.AddTasksResponse, err error) {
 					require.ErrorAs(t, err, new(*serviceerror.InvalidArgument))
 					assert.ErrorContains(t, err, "Too many tasks")
@@ -165,7 +166,7 @@ func TestInvoke(t *testing.T) {
 		{
 			name: "no tasks",
 			configure: func(t *testing.T, params *testParams) {
-				params.req.Tasks = make([]*historyservice.AddTasksRequest_Task, 0)
+				params.req.Tasks = make([]*commonspb.CategorizedTask, 0)
 				params.expectation = func(resp *historyservice.AddTasksResponse, err error) {
 					require.ErrorAs(t, err, new(*serviceerror.InvalidArgument))
 					assert.ErrorContains(t, err, "No tasks")
@@ -275,7 +276,7 @@ func getDefaultTestParams(t *testing.T) *testParams {
 		deserializer: serializer,
 		req: &historyservice.AddTasksRequest{
 			ShardId: 1,
-			Tasks: []*historyservice.AddTasksRequest_Task{
+			Tasks: []*commonspb.CategorizedTask{
 				{
 					CategoryId: int32(tasks.CategoryTransfer.ID()),
 					Blob:       &blob,

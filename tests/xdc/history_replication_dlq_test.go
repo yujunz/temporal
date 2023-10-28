@@ -105,7 +105,7 @@ type (
 	}
 	dlqWriterParams struct {
 		// This channel is sent to once we're done processing a request to add a message to the DLQ.
-		dlqRequests chan replication.WriteRequest
+		dlqRequests chan replication.DLQWriteRequest
 	}
 	testDLQWriter struct {
 		*dlqWriterParams
@@ -185,7 +185,7 @@ func (s *historyReplicationDLQSuite) SetupSuite() {
 	}
 
 	// Buffer this channel by one because we only care about the first request to add a message to the DLQ.
-	s.executionManagerParams.dlqRequests = make(chan replication.WriteRequest, 1)
+	s.executionManagerParams.dlqRequests = make(chan replication.DLQWriteRequest, 1)
 
 	// Buffer these channels by 100 because we don't know how many replication tasks there will be until the one that
 	// replicates our namespace is executed.
@@ -309,7 +309,7 @@ func (s *historyReplicationDLQSuite) TestWorkflowReplicationTaskFailure() {
 	// Wait for at least one replication task to be added to the DLQ. There could be more, but we only care about the
 	// first one because they should all be for this workflow since it's the only one for which we injected replication
 	// task failures.
-	var request replication.WriteRequest
+	var request replication.DLQWriteRequest
 	select {
 	case request = <-s.executionManagerParams.dlqRequests:
 	case <-ctx.Done():
@@ -449,7 +449,7 @@ func (t *testNamespaceReplicationTaskExecutor) Execute(
 // wait for it to know that the replication task has been added to the DLQ.
 func (t *testDLQWriter) WriteTaskToDLQ(
 	ctx context.Context,
-	request replication.WriteRequest,
+	request replication.DLQWriteRequest,
 ) error {
 	err := t.DLQWriter.WriteTaskToDLQ(ctx, request)
 	if err != nil {

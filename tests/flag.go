@@ -39,8 +39,8 @@ var TestFlags struct {
 func init() {
 	flag.StringVar(&TestFlags.FrontendAddr, "frontendAddress", "", "host:port for temporal frontend service")
 	flag.StringVar(&TestFlags.FrontendHTTPAddr, "frontendHttpAddress", "", "host:port for temporal frontend HTTP service (only applies when frontendAddress set)")
-	flag.StringVar(&TestFlags.PersistenceType, "persistenceType", "sql", "type of persistence - [nosql or sql]")
-	flag.StringVar(&TestFlags.PersistenceDriver, "persistenceDriver", "sqlite", "driver of nosql / sql- [cassandra, mysql, postgresql, sqlite]")
+	flag.StringVar(&TestFlags.PersistenceType, "persistenceType", "nosql", "type of persistence - [nosql or sql]")
+	flag.StringVar(&TestFlags.PersistenceDriver, "persistenceDriver", "cassandra", "driver of nosql / sql- [cassandra, mysql, postgresql, sqlite]")
 	flag.StringVar(&TestFlags.TestClusterConfigFile, "TestClusterConfigFile", "", "test cluster config file location")
 	flag.Float64Var(&TestFlags.PersistenceFaultInjectionRate, "PersistenceFaultInjectionRate", 0, "rate of persistence error injection. value: [0..1]. 0 = no injection")
 }

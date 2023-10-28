@@ -38,6 +38,7 @@ import "temporal/api/replication/v1/message.proto";
 
 import "temporal/server/api/cluster/v1/message.proto";
 import "temporal/server/api/common/v1/dlq.proto";
+import "temporal/server/api/common/v1/tasks.proto";
 import "temporal/server/api/enums/v1/common.proto";
 import "temporal/server/api/enums/v1/cluster.proto";
 import "temporal/server/api/enums/v1/task.proto";
@@ -469,3 +470,14 @@ message MergeDLQTasksResponse {
   // TODO: add DescribeDLQJob an CancelDLQJob APIs for clients to use these tokens.
   bytes job_token = 1;
 }
+
+message AddTasksRequest {
+  // Even though we can obtain the shard ID from the tasks, we still need the shard_id in the request for routing. If
+  // not, it would be possible to include tasks for shards that belong to different hosts, and we'd need to fan-out the
+  // request, which would be more complicated.
+  int32 shard_id = 1;
+  // The tasks to add. We use a common proto here because this is shared by the admin service as well.
+  repeated temporal.server.api.common.v1.CategorizedTask tasks = 2;
+}
+
+message AddTasksResponse {}

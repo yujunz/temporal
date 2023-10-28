@@ -37,6 +37,7 @@ import (
 	sdkclient "go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 	"go.temporal.io/sdk/workflow"
+	commonspb "go.temporal.io/server/api/common/v1"
 	"go.uber.org/fx"
 
 	enumspb "go.temporal.io/server/api/enums/v1"
@@ -224,7 +225,7 @@ func (s *addTasksSuite) TestAddTasks_Ok() {
 			shardID := tasks.GetShardIDForTask(task, int(s.testClusterConfig.HistoryConfig.NumHistoryShards))
 			request := &historyservice.AddTasksRequest{
 				ShardId: int32(shardID),
-				Tasks: []*historyservice.AddTasksRequest_Task{
+				Tasks: []*commonspb.CategorizedTask{
 					{
 						CategoryId: int32(task.GetCategory().ID()),
 						Blob:       &blob,

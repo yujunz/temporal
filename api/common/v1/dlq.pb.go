@@ -36,7 +36,6 @@ import (
 	strings "strings"
 
 	proto "github.com/gogo/protobuf/proto"
-	v1 "go.temporal.io/api/common/v1"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -50,58 +49,6 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-type HistoryTask struct {
-	// shard_id is included to avoid having to deserialize the task blob.
-	ShardId int32        `protobuf:"varint,1,opt,name=shard_id,json=shardId,proto3" json:"shard_id,omitempty"`
-	Blob    *v1.DataBlob `protobuf:"bytes,2,opt,name=blob,proto3" json:"blob,omitempty"`
-}
-
-func (m *HistoryTask) Reset()      { *m = HistoryTask{} }
-func (*HistoryTask) ProtoMessage() {}
-func (*HistoryTask) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d169aecba75076d1, []int{0}
-}
-func (m *HistoryTask) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *HistoryTask) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_HistoryTask.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *HistoryTask) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_HistoryTask.Merge(m, src)
-}
-func (m *HistoryTask) XXX_Size() int {
-	return m.Size()
-}
-func (m *HistoryTask) XXX_DiscardUnknown() {
-	xxx_messageInfo_HistoryTask.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_HistoryTask proto.InternalMessageInfo
-
-func (m *HistoryTask) GetShardId() int32 {
-	if m != nil {
-		return m.ShardId
-	}
-	return 0
-}
-
-func (m *HistoryTask) GetBlob() *v1.DataBlob {
-	if m != nil {
-		return m.Blob
-	}
-	return nil
-}
-
 type HistoryDLQTaskMetadata struct {
 	// message_id is the zero-indexed sequence number of the message in the queue that contains this history task.
 	MessageId int64 `protobuf:"varint,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
@@ -110,7 +57,7 @@ type HistoryDLQTaskMetadata struct {
 func (m *HistoryDLQTaskMetadata) Reset()      { *m = HistoryDLQTaskMetadata{} }
 func (*HistoryDLQTaskMetadata) ProtoMessage() {}
 func (*HistoryDLQTaskMetadata) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d169aecba75076d1, []int{1}
+	return fileDescriptor_d169aecba75076d1, []int{0}
 }
 func (m *HistoryDLQTaskMetadata) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -151,13 +98,13 @@ func (m *HistoryDLQTaskMetadata) GetMessageId() int64 {
 type HistoryDLQTask struct {
 	Metadata *HistoryDLQTaskMetadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// This is named payload to prevent stuttering (e.g. task.Task).
-	Payload *HistoryTask `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
+	Payload *ShardedTask `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
 }
 
 func (m *HistoryDLQTask) Reset()      { *m = HistoryDLQTask{} }
 func (*HistoryDLQTask) ProtoMessage() {}
 func (*HistoryDLQTask) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d169aecba75076d1, []int{2}
+	return fileDescriptor_d169aecba75076d1, []int{1}
 }
 func (m *HistoryDLQTask) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -193,7 +140,7 @@ func (m *HistoryDLQTask) GetMetadata() *HistoryDLQTaskMetadata {
 	return nil
 }
 
-func (m *HistoryDLQTask) GetPayload() *HistoryTask {
+func (m *HistoryDLQTask) GetPayload() *ShardedTask {
 	if m != nil {
 		return m.Payload
 	}
@@ -217,7 +164,7 @@ type HistoryDLQKey struct {
 func (m *HistoryDLQKey) Reset()      { *m = HistoryDLQKey{} }
 func (*HistoryDLQKey) ProtoMessage() {}
 func (*HistoryDLQKey) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d169aecba75076d1, []int{3}
+	return fileDescriptor_d169aecba75076d1, []int{2}
 }
 func (m *HistoryDLQKey) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -268,7 +215,6 @@ func (m *HistoryDLQKey) GetTargetCluster() string {
 }
 
 func init() {
-	proto.RegisterType((*HistoryTask)(nil), "temporal.server.api.common.v1.HistoryTask")
 	proto.RegisterType((*HistoryDLQTaskMetadata)(nil), "temporal.server.api.common.v1.HistoryDLQTaskMetadata")
 	proto.RegisterType((*HistoryDLQTask)(nil), "temporal.server.api.common.v1.HistoryDLQTask")
 	proto.RegisterType((*HistoryDLQKey)(nil), "temporal.server.api.common.v1.HistoryDLQKey")
@@ -279,62 +225,32 @@ func init() {
 }
 
 var fileDescriptor_d169aecba75076d1 = []byte{
-	// 404 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x92, 0xb1, 0xae, 0xd3, 0x30,
-	0x14, 0x86, 0x63, 0x2e, 0x70, 0xef, 0x75, 0xe9, 0x1d, 0x3c, 0xa0, 0x0b, 0x52, 0xad, 0x2a, 0x80,
-	0xa8, 0x90, 0x70, 0xd4, 0x02, 0x62, 0x60, 0x6b, 0x3b, 0x50, 0x01, 0x43, 0x23, 0x26, 0x06, 0xaa,
-	0x93, 0xc4, 0x0a, 0x51, 0x13, 0x1c, 0x6c, 0xb7, 0x52, 0x36, 0xc4, 0x13, 0xf0, 0x18, 0xf0, 0x26,
-	0x8c, 0x1d, 0x3b, 0xd2, 0x74, 0x61, 0xec, 0x23, 0xa0, 0xc4, 0x6e, 0xaa, 0x4a, 0x15, 0x62, 0xb3,
-	0x7f, 0x7d, 0xe7, 0xff, 0xcf, 0x39, 0x3a, 0xf8, 0xb1, 0xe6, 0x59, 0x2e, 0x24, 0xa4, 0x9e, 0xe2,
-	0x72, 0xc9, 0xa5, 0x07, 0x79, 0xe2, 0x85, 0x22, 0xcb, 0xc4, 0x67, 0x6f, 0xd9, 0xf7, 0xa2, 0xf4,
-	0x0b, 0xcb, 0xa5, 0xd0, 0x82, 0x74, 0xf6, 0x20, 0x33, 0x20, 0x83, 0x3c, 0x61, 0x06, 0x64, 0xcb,
-	0xfe, 0xfd, 0x87, 0x8d, 0xcf, 0xb1, 0x41, 0xc6, 0x95, 0x82, 0x98, 0x1b, 0x13, 0xf7, 0x23, 0x6e,
-	0xbd, 0x4e, 0x94, 0x16, 0xb2, 0x78, 0x0f, 0x6a, 0x4e, 0xee, 0xe1, 0x0b, 0xf5, 0x09, 0x64, 0x34,
-	0x4b, 0xa2, 0x6b, 0xd4, 0x45, 0xbd, 0x5b, 0xfe, 0x79, 0xfd, 0x9f, 0x44, 0xe4, 0x39, 0xbe, 0x19,
-	0xa4, 0x22, 0xb8, 0xbe, 0xd1, 0x45, 0xbd, 0xd6, 0xa0, 0xcb, 0x9a, 0xf4, 0xa3, 0x58, 0x36, 0x06,
-	0x0d, 0xc3, 0x54, 0x04, 0x7e, 0x4d, 0xbb, 0x2f, 0xf1, 0x5d, 0xeb, 0x3f, 0x7e, 0x3b, 0xad, 0x22,
-	0xde, 0x71, 0x0d, 0x11, 0x68, 0x20, 0x1d, 0x8c, 0x6d, 0x2b, 0xfb, 0xb0, 0x33, 0xff, 0xd2, 0x2a,
-	0x93, 0xc8, 0xfd, 0x89, 0xf0, 0xd5, 0x71, 0x25, 0x99, 0xe2, 0x8b, 0xcc, 0x56, 0xd7, 0x7c, 0x6b,
-	0xf0, 0x82, 0xfd, 0x73, 0x07, 0xec, 0x74, 0xb4, 0xdf, 0xd8, 0x90, 0x31, 0x3e, 0xcf, 0xa1, 0x48,
-	0x05, 0x44, 0x76, 0xae, 0x27, 0xff, 0xe7, 0x58, 0xd9, 0xf9, 0xfb, 0x52, 0xf7, 0x1b, 0xc2, 0xed,
-	0x43, 0xd4, 0x1b, 0x5e, 0x90, 0x07, 0xb8, 0xad, 0x41, 0xcd, 0x67, 0x21, 0x68, 0x1e, 0x0b, 0x59,
-	0xd8, 0x65, 0xde, 0xa9, 0xc4, 0x91, 0xd5, 0xc8, 0x23, 0x7c, 0xa5, 0xc4, 0x42, 0x86, 0x7c, 0x16,
-	0xa6, 0x0b, 0xa5, 0xb9, 0xac, 0x7b, 0xb8, 0xf4, 0xdb, 0x46, 0x1d, 0x19, 0xb1, 0xc2, 0x34, 0xc8,
-	0x98, 0xeb, 0x06, 0x3b, 0x33, 0x98, 0x51, 0x2d, 0x36, 0x0c, 0x57, 0x1b, 0xea, 0xac, 0x37, 0xd4,
-	0xd9, 0x6d, 0x28, 0xfa, 0x5a, 0x52, 0xf4, 0xa3, 0xa4, 0xe8, 0x57, 0x49, 0xd1, 0xaa, 0xa4, 0xe8,
-	0x77, 0x49, 0xd1, 0x9f, 0x92, 0x3a, 0xbb, 0x92, 0xa2, 0xef, 0x5b, 0xea, 0xac, 0xb6, 0xd4, 0x59,
-	0x6f, 0xa9, 0xf3, 0xe1, 0x69, 0x2c, 0x0e, 0x13, 0x27, 0xe2, 0xe4, 0xcd, 0xbd, 0x32, 0x2f, 0x95,
-	0x07, 0xc1, 0xed, 0xfa, 0x6a, 0x9e, 0xfd, 0x0d, 0x00, 0x00, 0xff, 0xff, 0xee, 0x57, 0x74, 0x15,
-	0xa5, 0x02, 0x00, 0x00,
+	// 359 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x91, 0x3f, 0x4b, 0xfb, 0x40,
+	0x18, 0xc7, 0x73, 0xbf, 0xf2, 0x53, 0x7b, 0xda, 0x0e, 0x19, 0xa4, 0x08, 0x3d, 0xa4, 0x22, 0xfe,
+	0x01, 0x13, 0xaa, 0x88, 0x83, 0x9b, 0xed, 0xa0, 0xa8, 0x43, 0xa3, 0x93, 0x4b, 0x79, 0x9a, 0x1c,
+	0x31, 0x34, 0xf1, 0xe2, 0xdd, 0xb5, 0x90, 0x4d, 0x7c, 0x05, 0xbe, 0x0c, 0x7d, 0x27, 0x8e, 0x1d,
+	0x3b, 0xda, 0xeb, 0xe2, 0xd8, 0x97, 0x20, 0xc9, 0xa5, 0x2d, 0x42, 0xa9, 0x5b, 0xf8, 0xf2, 0x79,
+	0x3e, 0xcf, 0x37, 0xf7, 0xe0, 0x3d, 0x49, 0xa3, 0x98, 0x71, 0x08, 0x6d, 0x41, 0x79, 0x9f, 0x72,
+	0x1b, 0xe2, 0xc0, 0x76, 0x59, 0x14, 0xb1, 0x27, 0xbb, 0x5f, 0xb7, 0xbd, 0xf0, 0xd9, 0x8a, 0x39,
+	0x93, 0xcc, 0xac, 0x4e, 0x41, 0x4b, 0x83, 0x16, 0xc4, 0x81, 0xa5, 0x41, 0xab, 0x5f, 0xdf, 0x3a,
+	0x58, 0xee, 0x91, 0x20, 0xba, 0x42, 0x9b, 0x6a, 0x67, 0x78, 0xf3, 0x32, 0x10, 0x92, 0xf1, 0xa4,
+	0x79, 0xd3, 0xba, 0x07, 0xd1, 0xbd, 0xa5, 0x12, 0x3c, 0x90, 0x60, 0x56, 0x31, 0x8e, 0xa8, 0x10,
+	0xe0, 0xd3, 0x76, 0xe0, 0x55, 0xd0, 0x36, 0xda, 0x2f, 0x38, 0xc5, 0x3c, 0xb9, 0xf2, 0x6a, 0x1f,
+	0x08, 0x97, 0x7f, 0x4f, 0x9a, 0x2d, 0xbc, 0x16, 0xe5, 0xd3, 0x19, 0xbf, 0x7e, 0x7c, 0x6a, 0x2d,
+	0x2d, 0x6a, 0x2d, 0x5e, 0xed, 0xcc, 0x34, 0x66, 0x13, 0xaf, 0xc6, 0x90, 0x84, 0x0c, 0xbc, 0xca,
+	0xbf, 0xcc, 0x78, 0xf8, 0x87, 0xf1, 0xee, 0x11, 0xb8, 0x47, 0xbd, 0x54, 0xe7, 0x4c, 0x47, 0x6b,
+	0xaf, 0x08, 0x97, 0xe6, 0xab, 0xae, 0x69, 0x62, 0xee, 0xe0, 0x52, 0xfa, 0x0a, 0x6d, 0x17, 0x24,
+	0xf5, 0x19, 0x4f, 0xb2, 0xbe, 0xff, 0x9d, 0x8d, 0x34, 0x6c, 0xe4, 0x99, 0xb9, 0x8b, 0xcb, 0x82,
+	0xf5, 0xb8, 0x4b, 0xdb, 0x6e, 0xd8, 0x13, 0x92, 0xf2, 0xac, 0x43, 0xd1, 0x29, 0xe9, 0xb4, 0xa1,
+	0xc3, 0x14, 0x93, 0xc0, 0x7d, 0x2a, 0x67, 0x58, 0x41, 0x63, 0x3a, 0xcd, 0xb1, 0x0b, 0x77, 0x30,
+	0x22, 0xc6, 0x70, 0x44, 0x8c, 0xc9, 0x88, 0xa0, 0x17, 0x45, 0xd0, 0xbb, 0x22, 0xe8, 0x53, 0x11,
+	0x34, 0x50, 0x04, 0x7d, 0x29, 0x82, 0xbe, 0x15, 0x31, 0x26, 0x8a, 0xa0, 0xb7, 0x31, 0x31, 0x06,
+	0x63, 0x62, 0x0c, 0xc7, 0xc4, 0x78, 0x38, 0xf2, 0xd9, 0xfc, 0x8f, 0x03, 0xb6, 0xf0, 0xa0, 0xe7,
+	0xfa, 0x4b, 0xc4, 0x9d, 0xce, 0x4a, 0x76, 0xd5, 0x93, 0x9f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xac,
+	0x8f, 0x87, 0x3d, 0x4a, 0x02, 0x00, 0x00,
 }
 
-func (this *HistoryTask) Equal(that interface{}) bool {
-	if that == nil {
-		return this == nil
-	}
-
-	that1, ok := that.(*HistoryTask)
-	if !ok {
-		that2, ok := that.(HistoryTask)
-		if ok {
-			that1 = &that2
-		} else {
-			return false
-		}
-	}
-	if that1 == nil {
-		return this == nil
-	} else if this == nil {
-		return false
-	}
-	if this.ShardId != that1.ShardId {
-		return false
-	}
-	if !this.Blob.Equal(that1.Blob) {
-		return false
-	}
-	return true
-}
 func (this *HistoryDLQTaskMetadata) Equal(that interface{}) bool {
 	if that == nil {
 		return this == nil
@@ -416,19 +332,6 @@ func (this *HistoryDLQKey) Equal(that interface{}) bool {
 	}
 	return true
 }
-func (this *HistoryTask) GoString() string {
-	if this == nil {
-		return "nil"
-	}
-	s := make([]string, 0, 6)
-	s = append(s, "&commonspb.HistoryTask{")
-	s = append(s, "ShardId: "+fmt.Sprintf("%#v", this.ShardId)+",\n")
-	if this.Blob != nil {
-		s = append(s, "Blob: "+fmt.Sprintf("%#v", this.Blob)+",\n")
-	}
-	s = append(s, "}")
-	return strings.Join(s, "")
-}
 func (this *HistoryDLQTaskMetadata) GoString() string {
 	if this == nil {
 		return "nil"
@@ -474,46 +377,6 @@ func valueToGoStringDlq(v interface{}, typ string) string {
 	pv := reflect.Indirect(rv).Interface()
 	return fmt.Sprintf("func(v %v) *%v { return &v } ( %#v )", typ, typ, pv)
 }
-func (m *HistoryTask) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *HistoryTask) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *HistoryTask) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.Blob != nil {
-		{
-			size, err := m.Blob.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintDlq(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.ShardId != 0 {
-		i = encodeVarintDlq(dAtA, i, uint64(m.ShardId))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *HistoryDLQTaskMetadata) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -642,22 +505,6 @@ func encodeVarintDlq(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
-func (m *HistoryTask) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.ShardId != 0 {
-		n += 1 + sovDlq(uint64(m.ShardId))
-	}
-	if m.Blob != nil {
-		l = m.Blob.Size()
-		n += 1 + l + sovDlq(uint64(l))
-	}
-	return n
-}
-
 func (m *HistoryDLQTaskMetadata) Size() (n int) {
 	if m == nil {
 		return 0
@@ -713,17 +560,6 @@ func sovDlq(x uint64) (n int) {
 func sozDlq(x uint64) (n int) {
 	return sovDlq(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (this *HistoryTask) String() string {
-	if this == nil {
-		return "nil"
-	}
-	s := strings.Join([]string{`&HistoryTask{`,
-		`ShardId:` + fmt.Sprintf("%v", this.ShardId) + `,`,
-		`Blob:` + strings.Replace(fmt.Sprintf("%v", this.Blob), "DataBlob", "v1.DataBlob", 1) + `,`,
-		`}`,
-	}, "")
-	return s
-}
 func (this *HistoryDLQTaskMetadata) String() string {
 	if this == nil {
 		return "nil"
@@ -740,7 +576,7 @@ func (this *HistoryDLQTask) String() string {
 	}
 	s := strings.Join([]string{`&HistoryDLQTask{`,
 		`Metadata:` + strings.Replace(this.Metadata.String(), "HistoryDLQTaskMetadata", "HistoryDLQTaskMetadata", 1) + `,`,
-		`Payload:` + strings.Replace(this.Payload.String(), "HistoryTask", "HistoryTask", 1) + `,`,
+		`Payload:` + strings.Replace(fmt.Sprintf("%v", this.Payload), "ShardedTask", "ShardedTask", 1) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -764,114 +600,6 @@ func valueToStringDlq(v interface{}) string {
 	}
 	pv := reflect.Indirect(rv).Interface()
 	return fmt.Sprintf("*%v", pv)
-}
-func (m *HistoryTask) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowDlq
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: HistoryTask: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: HistoryTask: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ShardId", wireType)
-			}
-			m.ShardId = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowDlq
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.ShardId |= int32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Blob", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowDlq
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthDlq
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthDlq
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Blob == nil {
-				m.Blob = &v1.DataBlob{}
-			}
-			if err := m.Blob.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipDlq(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthDlq
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthDlq
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
 }
 func (m *HistoryDLQTaskMetadata) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
@@ -1040,7 +768,7 @@ func (m *HistoryDLQTask) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Payload == nil {
-				m.Payload = &HistoryTask{}
+				m.Payload = &ShardedTask{}
 			}
 			if err := m.Payload.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err

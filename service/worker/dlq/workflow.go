@@ -40,6 +40,8 @@ import (
 	"go.temporal.io/server/api/adminservice/v1"
 	"go.temporal.io/server/common/debug"
 	"go.temporal.io/server/common/persistence"
+	"go.temporal.io/server/service/history/tasks"
+	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -60,6 +62,7 @@ type (
 		// MergeParams is only used for WorkflowTypeMerge.
 		MergeParams MergeParams
 	}
+
 	// Key uniquely identifies a DLQ.
 	Key struct {
 		// TaskCategoryID is the id used by [go.temporal.io/server/service/history/tasks.TaskCategoryRegistry].
@@ -72,12 +75,14 @@ type (
 		// if we add cross-cluster tasks in the future.
 		TargetCluster string
 	}
+
 	// DeleteParams contain the target DLQ and the max message ID to delete up to.
 	DeleteParams struct {
 		Key
 		// MaxMessageID is inclusive.
 		MaxMessageID int64
 	}
+
 	// MergeParams contain the target DLQ and the max message ID to merge up to.
 	MergeParams struct {
 		Key
@@ -87,6 +92,7 @@ type (
 		// The maximum is MaxMergeBatchSize. The default is DefaultMergeBatchSize.
 		BatchSize int
 	}
+
 	// HistoryClient is a subset of the [historyservice.HistoryServiceClient] interface.
 	HistoryClient interface {
 		DeleteDLQTasks(
@@ -94,19 +100,51 @@ type (
 			in *historyservice.DeleteDLQTasksRequest,
 			opts ...grpc.CallOption,
 		) (*historyservice.DeleteDLQTasksResponse, error)
-		AddTasks(
-			ctx context.Context,
-			in *historyservice.AddTasksRequest,
-			opts ...grpc.CallOption,
-		) (*historyservice.AddTasksResponse, error)
 		GetDLQTasks(
 			ctx context.Context,
 			in *historyservice.GetDLQTasksRequest,
 			opts ...grpc.CallOption,
 		) (*historyservice.GetDLQTasksResponse, error)
 	}
+
+	// TaskClient is a subset of the [historyservice.HistoryServiceClient] interface.
+	TaskClient interface {
+		AddTasks(
+			ctx context.Context,
+			in *adminservice.AddTasksRequest,
+		) (*adminservice.AddTasksResponse, error)
+	}
+
+	// AddTasksFn implements the [TaskClient] interface.
+	AddTasksFn func(
+		ctx context.Context,
+		req *adminservice.AddTasksRequest,
+	) (*adminservice.AddTasksResponse, error)
+
+	// TaskClientDialer is a function that returns a [TaskClient] given a cluster name.
+	TaskClientDialer interface {
+		Dial(ctx context.Context, cluster string) (TaskClient, error)
+	}
+
+	// TaskClientDialerFn is a function that returns a [TaskClient] given an address.
+	TaskClientDialerFn func(ctx context.Context, address string) (TaskClient, error)
+
+	// ClusterMetadata is a subset of the [cluster.Metadata] interface.
+	ClusterMetadata interface {
+		CurrentClusterName() string
+	}
+
+	workerComponentParams struct {
+		fx.In
+		HistoryClient    HistoryClient
+		ClusterMetadata  ClusterMetadata
+		TaskClientDialer TaskClientDialer
+	}
+
 	workerComponent struct {
-		historyClient HistoryClient
+		historyClient      HistoryClient
+		taskClientDialer   TaskClientDialer
+		currentClusterName string
 	}
 )
 
@@ -141,7 +179,7 @@ const (
 
 var (
 	// Module provides a [workercommon.WorkerComponent] annotated with [workercommon.WorkerComponentTag] to the graph, given
-	// a [HistoryClient] dependency.
+	// a [HistoryClient] and [ClusterMetadata].
 	Module = workercommon.AnnotateWorkerComponentProvider(newComponent)
 
 	ErrNegativeBatchSize      = errors.New("BatchSize must be positive or 0 to use the default")
@@ -165,9 +203,11 @@ var (
 	}
 )
 
-func newComponent(client HistoryClient) workercommon.WorkerComponent {
+func newComponent(params workerComponentParams) workercommon.WorkerComponent {
 	return &workerComponent{
-		historyClient: client,
+		historyClient:      params.HistoryClient,
+		currentClusterName: params.ClusterMetadata.CurrentClusterName(),
+		taskClientDialer:   params.TaskClientDialer,
 	}
 }
 
@@ -241,18 +281,18 @@ func (c *workerComponent) mergeTasks(ctx workflow.Context, params MergeParams) e
 		nextPageToken = response.NextPageToken
 
 		// 1.b. Filter out tasks from messages beyond the last-desired message.
-		tasks := make([]*commonspb.HistoryTask, 0, len(response.DlqTasks))
+		historyTasks := make([]*commonspb.ShardedTask, 0, len(response.DlqTasks))
 		maxBatchMessageID := int64(persistence.FirstQueueMessageID)
 
 		for _, task := range response.DlqTasks {
 			if task.Metadata.MessageId <= params.MaxMessageID {
-				tasks = append(tasks, task.Payload)
+				historyTasks = append(historyTasks, task.Payload)
 				maxBatchMessageID = max(maxBatchMessageID, task.Metadata.MessageId)
 			}
 		}
 
 		// 2. Re-enqueue tasks.
-		err = workflow.ExecuteActivity(ctx, reEnqueueTasksActivityName, params, tasks).Get(ctx, nil)
+		err = workflow.ExecuteActivity(ctx, reEnqueueTasksActivityName, params, historyTasks).Get(ctx, nil)
 		if err != nil {
 			return err
 		}
@@ -318,22 +358,39 @@ func parseMergeParams(params MergeParams) (MergeParams, error) {
 func (c *workerComponent) reEnqueueTasks(
 	ctx context.Context,
 	params MergeParams,
-	tasks []*commonspb.HistoryTask,
+	historyTasks []*commonspb.ShardedTask,
 ) error {
-	tasksByShard := make(map[int32][]*historyservice.AddTasksRequest_Task)
+	tasksByShard := make(map[int32][]*commonspb.CategorizedTask)
 
-	for _, task := range tasks {
-		newTask := &historyservice.AddTasksRequest_Task{
+	for _, task := range historyTasks {
+		newTask := &commonspb.CategorizedTask{
 			CategoryId: int32(params.TaskCategoryID),
 			Blob:       task.Blob,
 		}
 		tasksByShard[task.ShardId] = append(tasksByShard[task.ShardId], newTask)
 	}
 
-	for shardID, historyTasks := range tasksByShard {
-		_, err := c.historyClient.AddTasks(ctx, &historyservice.AddTasksRequest{
+	if params.TaskCategoryID == tasks.CategoryIDReplication {
+		if params.SourceCluster == c.currentClusterName {
+			return temporal.NewNonRetryableApplicationError(
+				fmt.Sprintf(
+					"Source cluster cannot be the current cluster when re-enqueing replication tasks: %q",
+					params.SourceCluster,
+				),
+				errorTypeInvalidRequest,
+				nil,
+			)
+		}
+	}
+	var err error
+	taskClient, err := c.taskClientDialer.Dial(ctx, params.SourceCluster)
+	if err != nil {
+		return fmt.Errorf("unable to dial history service for cluster %q: %w", params.SourceCluster, err)
+	}
+	for shardID, batch := range tasksByShard {
+		_, err := taskClient.AddTasks(ctx, &adminservice.AddTasksRequest{
 			ShardId: shardID,
-			Tasks:   historyTasks,
+			Tasks:   batch,
 		})
 		if err != nil {
 			return c.convertServerErr(err, "AddTasks failed while re-enqueuing tasks")
@@ -411,4 +468,15 @@ func (c *workerComponent) DedicatedActivityWorkerOptions() *workercommon.Dedicat
 			),
 		},
 	}
+}
+
+func (f TaskClientDialerFn) Dial(ctx context.Context, address string) (TaskClient, error) {
+	return f(ctx, address)
+}
+
+func (f AddTasksFn) AddTasks(
+	ctx context.Context,
+	in *adminservice.AddTasksRequest,
+) (*adminservice.AddTasksResponse, error) {
+	return f(ctx, in)
 }

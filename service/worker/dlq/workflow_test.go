@@ -26,6 +26,7 @@ package dlq_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,8 +34,10 @@ import (
 	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/server/api/adminservice/v1"
 	commonspb "go.temporal.io/server/api/common/v1"
 	"go.temporal.io/server/api/historyservice/v1"
+	"go.temporal.io/server/common/persistence/serialization"
 	"go.temporal.io/server/common/primitives"
 	"go.temporal.io/server/service/history/tasks"
 	workercommon "go.temporal.io/server/service/worker/common"
@@ -51,16 +54,20 @@ type (
 		configure func(t *testing.T, params *testParams)
 	}
 	testParams struct {
-		workflowParams dlq.WorkflowParams
-		client         *testHistoryClient
+		workflowParams  dlq.WorkflowParams
+		client          *testHistoryClient
+		clusterMetadata testClusterMetadata
 		// expectation is run with the result of the workflow execution
-		expectation func(err error)
+		expectation      func(err error)
+		taskClientDialer dlq.TaskClientDialer
 	}
 	// This client allows the test to set custom functions for each of its methods.
 	testHistoryClient struct {
 		getTasksFn    func(req *historyservice.GetDLQTasksRequest) (*historyservice.GetDLQTasksResponse, error)
 		deleteTasksFn func(req *historyservice.DeleteDLQTasksRequest) (*historyservice.DeleteDLQTasksResponse, error)
-		addTasksFn    func(req *historyservice.AddTasksRequest) (*historyservice.AddTasksResponse, error)
+	}
+	testClusterMetadata struct {
+		currentClusterName string
 	}
 )
 
@@ -200,7 +207,7 @@ func TestModule(t *testing.T) {
 				params.workflowParams.MergeParams.MaxMessageID = 2
 				var (
 					getRequests []*historyservice.GetDLQTasksRequest
-					addRequests []*historyservice.AddTasksRequest
+					addRequests []*adminservice.AddTasksRequest
 				)
 				params.client.getTasksFn = func(
 					req *historyservice.GetDLQTasksRequest,
@@ -212,7 +219,7 @@ func TestModule(t *testing.T) {
 								Metadata: &commonspb.HistoryDLQTaskMetadata{
 									MessageId: 0,
 								},
-								Payload: &commonspb.HistoryTask{
+								Payload: &commonspb.ShardedTask{
 									ShardId: 1,
 								},
 							},
@@ -220,17 +227,17 @@ func TestModule(t *testing.T) {
 						NextPageToken: nil,
 					}, nil
 				}
-				params.client.addTasksFn = func(
-					req *historyservice.AddTasksRequest,
-				) (*historyservice.AddTasksResponse, error) {
-					addRequests = append(addRequests, req)
-					return nil, nil
-				}
+				params.taskClientDialer = dlq.TaskClientDialerFn(func(ctx context.Context, address string) (dlq.TaskClient, error) {
+					return dlq.AddTasksFn(func(ctx context.Context, req *adminservice.AddTasksRequest) (*adminservice.AddTasksResponse, error) {
+						addRequests = append(addRequests, req)
+						return nil, nil
+					}), nil
+				})
 				params.expectation = func(err error) {
 					require.NoError(t, err)
 					assert.Len(t, getRequests, 1)
 					require.Len(t, addRequests, 1)
-					requestsByShardID := make(map[int32]*historyservice.AddTasksRequest)
+					requestsByShardID := make(map[int32]*adminservice.AddTasksRequest)
 					for _, request := range addRequests {
 						requestsByShardID[request.GetShardId()] = request
 					}
@@ -248,17 +255,17 @@ func TestModule(t *testing.T) {
 				) (*historyservice.GetDLQTasksResponse, error) {
 					return getPaginatedResponse(req)
 				}
-				var addRequests []*historyservice.AddTasksRequest
-				params.client.addTasksFn = func(
-					req *historyservice.AddTasksRequest,
-				) (*historyservice.AddTasksResponse, error) {
-					addRequests = append(addRequests, req)
-					return nil, nil
-				}
+				var addRequests []*adminservice.AddTasksRequest
+				params.taskClientDialer = dlq.TaskClientDialerFn(func(ctx context.Context, address string) (dlq.TaskClient, error) {
+					return dlq.AddTasksFn(func(ctx context.Context, req *adminservice.AddTasksRequest) (*adminservice.AddTasksResponse, error) {
+						addRequests = append(addRequests, req)
+						return nil, nil
+					}), nil
+				})
 				params.expectation = func(err error) {
 					require.NoError(t, err)
 					require.Len(t, addRequests, 3)
-					requestsByShardID := make(map[int32]*historyservice.AddTasksRequest)
+					requestsByShardID := make(map[int32]*adminservice.AddTasksRequest)
 					for _, request := range addRequests {
 						requestsByShardID[request.GetShardId()] = request
 					}
@@ -279,7 +286,7 @@ func TestModule(t *testing.T) {
 							Metadata: &commonspb.HistoryDLQTaskMetadata{
 								MessageId: 0,
 							},
-							Payload: &commonspb.HistoryTask{
+							Payload: &commonspb.ShardedTask{
 								ShardId: 1,
 							},
 						},
@@ -290,13 +297,19 @@ func TestModule(t *testing.T) {
 				) (*historyservice.GetDLQTasksResponse, error) {
 					return res, nil
 				}
-				var addTasksRequests []*historyservice.AddTasksRequest
-				params.client.addTasksFn = func(
-					req *historyservice.AddTasksRequest,
-				) (*historyservice.AddTasksResponse, error) {
-					addTasksRequests = append(addTasksRequests, req)
-					return nil, new(serviceerror.InvalidArgument)
-				}
+				var addTasksRequests []*adminservice.AddTasksRequest
+				params.taskClientDialer = dlq.TaskClientDialerFn(func(
+					ctx context.Context,
+					address string,
+				) (dlq.TaskClient, error) {
+					return dlq.AddTasksFn(func(
+						ctx context.Context,
+						req *adminservice.AddTasksRequest,
+					) (*adminservice.AddTasksResponse, error) {
+						addTasksRequests = append(addTasksRequests, req)
+						return nil, new(serviceerror.InvalidArgument)
+					}), nil
+				})
 				params.expectation = func(err error) {
 					var applicationErr *temporal.ApplicationError
 					require.ErrorAs(t, err, &applicationErr)
@@ -318,7 +331,7 @@ func TestModule(t *testing.T) {
 							Metadata: &commonspb.HistoryDLQTaskMetadata{
 								MessageId: 0,
 							},
-							Payload: &commonspb.HistoryTask{
+							Payload: &commonspb.ShardedTask{
 								ShardId: 1,
 							},
 						},
@@ -330,15 +343,21 @@ func TestModule(t *testing.T) {
 					return res, nil
 				}
 				var (
-					addRequests    []*historyservice.AddTasksRequest
+					addRequests    []*adminservice.AddTasksRequest
 					deleteRequests []*historyservice.DeleteDLQTasksRequest
 				)
-				params.client.addTasksFn = func(
-					req *historyservice.AddTasksRequest,
-				) (*historyservice.AddTasksResponse, error) {
-					addRequests = append(addRequests, req)
-					return nil, nil
-				}
+				params.taskClientDialer = dlq.TaskClientDialerFn(func(
+					ctx context.Context,
+					address string,
+				) (dlq.TaskClient, error) {
+					return dlq.AddTasksFn(func(
+						ctx context.Context,
+						req *adminservice.AddTasksRequest,
+					) (*adminservice.AddTasksResponse, error) {
+						addRequests = append(addRequests, req)
+						return nil, nil
+					}), nil
+				})
 				params.client.deleteTasksFn = func(
 					req *historyservice.DeleteDLQTasksRequest,
 				) (*historyservice.DeleteDLQTasksResponse, error) {
@@ -356,6 +375,81 @@ func TestModule(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "merge_replication_tasks_source_cluster_is_current_cluster",
+			configure: func(t *testing.T, params *testParams) {
+				params.setDefaultMergeParams(t)
+				params.clusterMetadata.currentClusterName = "current-cluster"
+				params.workflowParams.MergeParams.Key.SourceCluster = "current-cluster"
+				params.workflowParams.MergeParams.Key.TargetCluster = "current-cluster"
+				params.workflowParams.MergeParams.Key.TaskCategoryID = tasks.CategoryIDReplication
+				var replicationTask tasks.HistoryReplicationTask
+				blob, err := serialization.NewTaskSerializer().SerializeTask(&replicationTask)
+				require.NoError(t, err)
+				params.client.getTasksFn = func(req *historyservice.GetDLQTasksRequest) (*historyservice.GetDLQTasksResponse, error) {
+					return &historyservice.GetDLQTasksResponse{
+						DlqTasks: []*commonspb.HistoryDLQTask{
+							{
+								Metadata: &commonspb.HistoryDLQTaskMetadata{
+									MessageId: 0,
+								},
+								Payload: &commonspb.ShardedTask{
+									ShardId: 1,
+									Blob:    &blob,
+								},
+							},
+						},
+					}, nil
+				}
+				params.expectation = func(err error) {
+					var applicationErr *temporal.ApplicationError
+					require.ErrorAs(t, err, &applicationErr)
+					assert.True(t, applicationErr.NonRetryable())
+					msg := strings.ToLower(err.Error())
+					assert.Contains(t, msg, "source cluster cannot be the current cluster")
+					assert.Contains(t, msg, "replication")
+				}
+			},
+		},
+		{
+			name: "merge_replication_tasks_dial_error",
+			configure: func(t *testing.T, params *testParams) {
+				params.setDefaultMergeParams(t)
+				params.workflowParams.MergeParams.Key.SourceCluster = "source-cluster"
+				params.workflowParams.MergeParams.Key.TargetCluster = "current-cluster"
+				params.clusterMetadata.currentClusterName = "current-cluster"
+				params.workflowParams.MergeParams.Key.TaskCategoryID = tasks.CategoryIDReplication
+				var replicationTask tasks.HistoryReplicationTask
+				blob, err := serialization.NewTaskSerializer().SerializeTask(&replicationTask)
+				require.NoError(t, err)
+				params.client.getTasksFn = func(req *historyservice.GetDLQTasksRequest) (*historyservice.GetDLQTasksResponse, error) {
+					return &historyservice.GetDLQTasksResponse{
+						DlqTasks: []*commonspb.HistoryDLQTask{
+							{
+								Metadata: &commonspb.HistoryDLQTaskMetadata{
+									MessageId: 0,
+								},
+								Payload: &commonspb.ShardedTask{
+									ShardId: 1,
+									Blob:    &blob,
+								},
+							},
+						},
+					}, nil
+				}
+				params.taskClientDialer = dlq.TaskClientDialerFn(func(ctx context.Context, address string) (dlq.TaskClient, error) {
+					return nil, assert.AnError
+				})
+				params.expectation = func(err error) {
+					var applicationErr *temporal.ApplicationError
+					require.ErrorAs(t, err, &applicationErr)
+					assert.False(t, applicationErr.NonRetryable())
+					msg := strings.ToLower(err.Error())
+					assert.Contains(t, msg, "unable to dial history service for cluster")
+					assert.Contains(t, msg, "source-cluster")
+				}
+			},
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -369,9 +463,17 @@ func TestModule(t *testing.T) {
 			fxtest.New(
 				t,
 				dlq.Module,
-				fx.Provide(func() dlq.HistoryClient {
-					return params.client
-				}),
+				fx.Provide(
+					func() dlq.HistoryClient {
+						return params.client
+					},
+					func() dlq.TaskClientDialer {
+						return params.taskClientDialer
+					},
+					func() dlq.ClusterMetadata {
+						return &params.clusterMetadata
+					},
+				),
 				fx.Populate(fx.Annotate(&components, fx.ParamTags(workercommon.WorkerComponentTag))),
 			)
 			require.Len(t, components, 1)
@@ -398,7 +500,7 @@ func getPaginatedResponse(req *historyservice.GetDLQTasksRequest) (*historyservi
 					Metadata: &commonspb.HistoryDLQTaskMetadata{
 						MessageId: 0,
 					},
-					Payload: &commonspb.HistoryTask{
+					Payload: &commonspb.ShardedTask{
 						ShardId: 1,
 					},
 				},
@@ -406,7 +508,7 @@ func getPaginatedResponse(req *historyservice.GetDLQTasksRequest) (*historyservi
 					Metadata: &commonspb.HistoryDLQTaskMetadata{
 						MessageId: 1,
 					},
-					Payload: &commonspb.HistoryTask{
+					Payload: &commonspb.ShardedTask{
 						ShardId: 2,
 					},
 				},
@@ -414,7 +516,7 @@ func getPaginatedResponse(req *historyservice.GetDLQTasksRequest) (*historyservi
 					Metadata: &commonspb.HistoryDLQTaskMetadata{
 						MessageId: 2,
 					},
-					Payload: &commonspb.HistoryTask{
+					Payload: &commonspb.ShardedTask{
 						ShardId: 2,
 					},
 				},
@@ -429,7 +531,7 @@ func getPaginatedResponse(req *historyservice.GetDLQTasksRequest) (*historyservi
 				Metadata: &commonspb.HistoryDLQTaskMetadata{
 					MessageId: 3,
 				},
-				Payload: &commonspb.HistoryTask{
+				Payload: &commonspb.ShardedTask{
 					ShardId: 3,
 				},
 			},
@@ -437,7 +539,7 @@ func getPaginatedResponse(req *historyservice.GetDLQTasksRequest) (*historyservi
 				Metadata: &commonspb.HistoryDLQTaskMetadata{
 					MessageId: 4,
 				},
-				Payload: &commonspb.HistoryTask{
+				Payload: &commonspb.ShardedTask{
 					ShardId: 4,
 				},
 			},
@@ -453,8 +555,8 @@ func (p *testParams) setDefaultDeleteParams(t *testing.T) {
 		DeleteParams: dlq.DeleteParams{
 			Key: dlq.Key{
 				TaskCategoryID: tasks.CategoryTransfer.ID(),
-				SourceCluster:  "source-cluster",
-				TargetCluster:  "target-cluster",
+				SourceCluster:  "current-cluster",
+				TargetCluster:  "current-cluster",
 			},
 		},
 	}
@@ -467,11 +569,12 @@ func (p *testParams) setDefaultMergeParams(t *testing.T) {
 		MergeParams: dlq.MergeParams{
 			Key: dlq.Key{
 				TaskCategoryID: tasks.CategoryTransfer.ID(),
-				SourceCluster:  "source-cluster",
-				TargetCluster:  "target-cluster",
+				SourceCluster:  "current-cluster",
+				TargetCluster:  "current-cluster",
 			},
 		},
 	}
+	p.clusterMetadata.currentClusterName = "current-cluster"
 }
 
 func (p *testParams) setDefaultParams(t *testing.T) {
@@ -479,11 +582,6 @@ func (p *testParams) setDefaultParams(t *testing.T) {
 	p.client.getTasksFn = func(
 		*historyservice.GetDLQTasksRequest,
 	) (*historyservice.GetDLQTasksResponse, error) {
-		return nil, nil
-	}
-	p.client.addTasksFn = func(
-		request *historyservice.AddTasksRequest,
-	) (*historyservice.AddTasksResponse, error) {
 		return nil, nil
 	}
 	p.client.deleteTasksFn = func(
@@ -494,6 +592,11 @@ func (p *testParams) setDefaultParams(t *testing.T) {
 	p.expectation = func(err error) {
 		require.NoError(t, err)
 	}
+	p.taskClientDialer = dlq.TaskClientDialerFn(func(ctx context.Context, address string) (dlq.TaskClient, error) {
+		return dlq.AddTasksFn(func(ctx context.Context, req *adminservice.AddTasksRequest) (*adminservice.AddTasksResponse, error) {
+			return nil, nil
+		}), nil
+	})
 }
 
 func (c *testHistoryClient) GetDLQTasks(
@@ -508,8 +611,6 @@ func (c *testHistoryClient) DeleteDLQTasks(
 	return c.deleteTasksFn(req)
 }
 
-func (c *testHistoryClient) AddTasks(
-	_ context.Context, req *historyservice.AddTasksRequest, _ ...grpc.CallOption,
-) (*historyservice.AddTasksResponse, error) {
-	return c.addTasksFn(req)
+func (t *testClusterMetadata) CurrentClusterName() string {
+	return t.currentClusterName
 }
