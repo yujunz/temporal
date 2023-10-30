@@ -34,6 +34,8 @@ type (
 		name        string
 		description string
 		unit        MetricUnit
+		file        string
+		line        int
 	}
 )
 
@@ -51,6 +53,14 @@ func (md metricDefinition) GetMetricName() string {
 
 func (md metricDefinition) GetMetricUnit() MetricUnit {
 	return md.unit
+}
+
+func (md metricDefinition) GetFile() string {
+	return md.file
+}
+
+func (md metricDefinition) GetLine() int {
+	return md.line
 }
 
 func NewTimerDef(name string, opts ...Option) metricDefinition {

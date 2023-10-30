@@ -27,6 +27,7 @@ package metrics
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 )
 
@@ -75,6 +76,12 @@ func (c *registry) register(name string, opts ...Option) metricDefinition {
 		description: "",
 		unit:        "",
 	}
+	_, file, line, ok := runtime.Caller(2)
+	if !ok {
+		panic("failed to get caller info for metric definition")
+	}
+	d.file = file
+	d.line = line
 	for _, opt := range opts {
 		opt.apply(&d)
 	}

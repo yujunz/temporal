@@ -1124,3 +1124,8 @@ const (
 	MatchingPollWorkflowTaskQueueTag              = "PollWorkflowTaskQueue"
 	HistoryHandleWorkflowTaskStartedTag           = "HandleWorkflowTaskStarted"
 )
+
+// GetRegisteredMetricsDefinitions returns all registered metrics from the global registry.
+func GetRegisteredMetricsDefinitions() []metricDefinition {
+	return globalRegistry.definitions
+}
